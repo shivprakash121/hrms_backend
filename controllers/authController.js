@@ -45,9 +45,11 @@ const registerEmployee = async (req, res) => {
             leaveBalance,
             role,
             shiftTime,
-            loginPassword
+            loginPassword,
+            pancardNo,
+            workingDays
         } = req.body;
-
+        console.log(req.body)
         if ((!email || email == "" || email == null) && (!employeeId || employeeId == "" || employeeId == null)) {
             return res.status(400).json({
                 statusCode: 400,
@@ -64,7 +66,7 @@ const registerEmployee = async (req, res) => {
                 });
             }
             const newEmployee = new employeeModel({
-                employeeId:employeeId ? Number(employeeId) : "NA",
+                employeeId:employeeId ? employeeId : "NA",
                 employeeName:employeeName ? employeeName : "NA",
                 employeeCode: employeeCode ? employeeCode : "NA",
                 gender: gender ? gender : "NA",
@@ -98,7 +100,9 @@ const registerEmployee = async (req, res) => {
                 leaveBalance,
                 role : role ? role : "Employee",
                 shiftTime,
-                loginPassword : loginPassword ? loginPassword : "12345"
+                loginPassword : loginPassword ? loginPassword : "12345",
+                workingDays: workingDays ? workingDays : "5",
+                pancardNo: pancardNo ? pancardNo : "NA"
             });
             //   console.log('body-data',req.body)
             const savedEmployee = await newEmployee.save();  
@@ -184,7 +188,10 @@ const employeeLogin = async (req, res) => {
                 email: employee.email,
                 contactNo: employee.contactNo,
                 designation:employee.designation,
+                gender:employee.gender,
+                departmentId:employee.departmentId,
                 token,
+
             },
         });
     } catch (error) {

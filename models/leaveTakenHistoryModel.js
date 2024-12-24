@@ -2,12 +2,12 @@ const mongoose = require("mongoose");
 
 const leaveTakenHistorySchema = new mongoose.Schema({
   employeeId: {
-    type: Number,
+    type: String,
     required: true,
   },
   leaveType: {
     type: String,
-    enum: ["casualLeave", "medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "compOffLeave"],
+    enum: ["casualLeave", "medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "compOffLeave", "regularized", "shortLeave"],
     required: true,
   },
   leaveStartDate: { 
@@ -19,8 +19,7 @@ const leaveTakenHistorySchema = new mongoose.Schema({
     required: true,
   },
   totalDays: { 
-    type: String, 
-    required: true, 
+    type: String,  
     min: "0.5", 
   },
   reason: { 
@@ -35,6 +34,10 @@ const leaveTakenHistorySchema = new mongoose.Schema({
   approvedBy: {
     type: String, 
     required: true,
+  },
+  location:{
+    type: String,
+    default: ""
   },
   approvedDateTime: { type: String, default: "" },
   dateTime:{ type: String, default:"" },  

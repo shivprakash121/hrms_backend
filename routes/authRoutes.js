@@ -14,6 +14,12 @@ router.put('/update/:employeeId', authController.updateEmployeeById);
 router.get('/get-all', authController.getAllEmployeeList); 
 router.get('/get-employee-details/:employeeId', authController.getEmpDetailsById);
 router.delete('/delete-employee/:employeeId', authController.deleteEmpById);
+router.delete('/delete-employee/:employeeId', authController.deleteEmpById);
+
+
+
+// holidays route
+// router.post('/', authMiddleware, authController.logout);
 
 
 

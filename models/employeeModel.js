@@ -13,19 +13,19 @@ const leaveBalanceSchema = new mongoose.Schema({
 });
 
 const employeeSchema = new mongoose.Schema({
-  employeeId: { type: Number, unique:true, required: true },
-  employeeName: { type: String, required: true },
+  employeeId: { type: String, required: true },
+  employeeName: { type: String, required: true },  
   employeeCode: { type: String, default: "" },
-  gender: { type: String, enum: ["Male", "Female", "Other", "NA"], default: "Male" },
+  gender: { type: String, default: ""},
   departmentId: { type: Number, default: 0 },
   designation: { type: String, default: "" },
   doj: { type: String, default: "" },
   dor: { type: String, default: "" },
   doc:{ type: String, default: "" },
   employeeCodeInDevice: { type: String, default: "NA" },
-  employmentType: { type: String, enum:["Permanent", "Contractual", "Internship", "Part-Time", "Freelance", "NA"], default: "Permanent", required: true },
-  employeeStatus: { type: String, enum: ["Working", "Resigned", "Retired"], default: "Working" },
-  accountStatus: { type: String, enum: ["Active", "Pending", "Inactive", "Disabled"], default: "Active" },
+  employmentType: { type: String, default: "Permanent", required: true },
+  employeeStatus: { type: String, default: "Working" },
+  accountStatus: { type: String, default: "Active" },
   employeeDevicePassword: { type: String },
   employeeDeviceGroup: { type: String },
   fatherName: { type: String, default: "" },
@@ -33,7 +33,7 @@ const employeeSchema = new mongoose.Schema({
   residentialAddress: { type: String, default: "" },
   permanentAddress: { type: String, default: "" },
   contactNo: { type: String, default: "" },
-  email: { type: String, unique: true, required: true },
+  email: { type: String, required: true },
   dob: { type: String, default: "" }, // Date of Birth
   placeOfBirth: { type: String, default: "" },
   recordStatus: { type: Number, default: 1 },
@@ -56,10 +56,11 @@ const employeeSchema = new mongoose.Schema({
   emergencyContact: { type: String, default: "" },  
   managerId: { type: String, default: "" },
   teamLeadId: { type: String, default: "" },
+  workingDays:{ type: String, default: "5" },
+  pancardNo: { type: String, default: "" },
   leaveBalance: { type: leaveBalanceSchema, default: () => ({}) },
   role: {
     type: String,
-    enum: ["Super-Admin", "Admin", "HR-Admin", "Manager", "Employee", "Team-Lead"],
     default: "Employee",
   },
 },{

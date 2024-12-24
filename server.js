@@ -21,6 +21,8 @@ connectToDB();  // for sql conn
 const mainRoutes = require('./routes/mainRoutes');
 const authRoutes = require('./routes/authRoutes');
 const leaveRoutes = require('./routes/leaveRoutes');
+const commonRoutes = require("./routes/commonRoutes");
+const indexRoutes = require("./routes/index");
 
 
 const logRequestDetails = (req, res, next) => {
@@ -37,6 +39,17 @@ app.use(logRequestDetails);
 app.use('/api', mainRoutes);
 app.use('/api/employee', authRoutes);
 app.use('/api/leave', leaveRoutes);
+app.use('/api/common', commonRoutes)
+app.use('/api/s3', indexRoutes);
+
+// test code
+var bar = null;
+console.log(typeof bar === "object");  // logs true!
+
+
+
+
+
 
 
 
