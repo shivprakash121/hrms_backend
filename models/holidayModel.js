@@ -5,6 +5,7 @@ const holidayModelSchema = new mongoose.Schema({
   holidayDate: { type: String, required:true },
   description: { type: String, required:true },  
   holiday_id: { type: String, default:"" },
+  location: { type: String, default: "" },
   createdAt: { type: Date, default: Date.now }, 
   updatedAt: { type: Date, default: Date.now }, 
 

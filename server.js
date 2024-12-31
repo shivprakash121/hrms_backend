@@ -8,6 +8,7 @@ const morgan = require("morgan");
 const dotenv = require("dotenv");
 dotenv.config();
 const cors = require("cors")
+const cron = require('node-cron');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,11 +43,136 @@ app.use('/api/leave', leaveRoutes);
 app.use('/api/common', commonRoutes)
 app.use('/api/s3', indexRoutes);
 
-// test code
-var bar = null;
-console.log(typeof bar === "object");  // logs true!
+// cron job
+const employeeModel = require("./models/employeeModel");
+const CompOff = require("./models/compOffHistoryModel.js");
+const moment = require("moment");
 
+// Cron job for automatic approved compOff request
+// Schedule the cron job to run every day at midnight
+cron.schedule("0 0 * * *", async () => {
+    try {
+        // Get today's date minus 3 days, formatted as YYYY-MM-DD
+        const threeDaysAgo = moment().subtract(3, "days").format("YYYY-MM-DD");
 
+        // Find all comp-off requests with compOffDate older than or equal to 3 days ago and still pending
+        const compOffRequests = await CompOff.find({
+            compOffDate: { $lte: threeDaysAgo },
+            status: "Pending"
+        });
+
+        for (const compOff of compOffRequests) {
+            // Approve the comp-off request
+            const updatedCompOff = await CompOff.findByIdAndUpdate(
+                compOff._id,
+                {
+                    status: "Approved",
+                    approvedDate: moment().format("YYYY-MM-DD HH:mm:ss"),
+                    comments: "Action taken automatically after 3 days"
+                },
+                { new: true }
+            );
+
+            // Update the employee's leave balance
+            await Employee.updateOne(
+                { employeeId: compOff.employeeId },
+                {
+                    $set: {
+                        "leaveBalance.compOffLeave": {
+                            $toString: {
+                                $add: [
+                                    { $toInt: "$leaveBalance.compOffLeave" },
+                                    parseInt(compOff.totalDays, 10)
+                                ]
+                            }
+                        }
+                    }
+                }
+            );
+
+            console.log(`CompOff request approved for employee ID: ${compOff.employeeId}`);
+        }
+
+        console.log("Cron job completed successfully.");
+    } catch (error) {
+        console.error("Error during cron job execution:", error);
+    }
+});
+
+// Cron job for getting 1 casualLeave and 3 maxRegularization 
+// Schedule a cron job to run at midnight on the first day of every month
+cron.schedule('0 0 1 * *', async () => {
+    console.log('Running cron job to reset casualLeave...');
+
+    try {
+        // Update all employees' casualLeave to 1
+        const result = await employeeModel.updateMany(
+            {},
+            { $set: { 
+                'leaveBalance.casualLeave': '1',
+                'maxRegularization': '3'
+            } }
+        );
+
+        console.log(`Successfully updated casualLeave for ${result.nModified} employees.`);
+    } catch (error) {
+        console.error('Error updating casualLeave:', error);
+    }
+});
+
+// Cron job for
+// Cron job for January 1st at midnight
+cron.schedule('0 0 1 1 *', async () => {
+    console.log('Running cron job to reset medicalLeave to 6 on January 1st...');
+
+    try {
+        // Update all employees' medicalLeave to 6
+        const result = await employeeModel.updateMany(
+            {},
+            { $set: { 'leaveBalance.medicalLeave': '6' } }
+        );
+
+        console.log(`Successfully updated medicalLeave to 6 for ${result.nModified} employees.`);
+    } catch (error) {
+        console.error('Error updating medicalLeave on January 1st:', error);
+    }
+});
+
+// Cron job for July 1st at midnight
+cron.schedule('0 0 1 7 *', async () => {
+    console.log('Running cron job to reset medicalLeave to 6 on July 1st...');
+
+    try {
+        // Update all employees' medicalLeave to 6
+        const result = await employeeModel.updateMany(
+            {},
+            { $set: { 'leaveBalance.medicalLeave': '6' } }
+        );
+
+        console.log(`Successfully updated medicalLeave to 6 for ${result.nModified} employees.`);
+    } catch (error) {
+        console.error('Error updating medicalLeave on July 1st:', error);
+    }
+});
+
+// Cron job to credit 4 earned leaves every quarter
+cron.schedule('0 0 1 1,4,7,10 *', async () => {
+    console.log('Running cron job to credit 4 earned leaves...');
+
+    try {
+        // Update all employees' earnedLeave by adding 4 to the existing value
+        const result = await employeeModel.updateMany(
+            {},
+            {
+                $inc: { 'leaveBalance.earnedLeave': 4 }, // Increment earnedLeave by 4
+            }
+        );
+
+        console.log(`Successfully credited 4 earned leaves for ${result.nModified} employees.`);
+    } catch (error) {
+        console.error('Error crediting earned leaves:', error);
+    }
+});
 
 
 

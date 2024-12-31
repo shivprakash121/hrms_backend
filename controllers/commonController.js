@@ -19,6 +19,7 @@ const addNewHoliday = async (req, res) => {
             holidayDate: Joi.string().required(),
             description: Joi.string().required(),
             holiday_id: Joi.string().required(),
+            location: Joi.string().required(),
         });
         let result = schema.validate(req.body);
         // console.log(req.body)  
@@ -42,7 +43,8 @@ const addNewHoliday = async (req, res) => {
             holidayName: req.body.holidayName,
             holidayDate: req.body.holidayDate,
             description: req.body.description,
-            holiday_id: req.body.holiday_id
+            holiday_id: req.body.holiday_id,
+            location: req.body.location
         })
 
         const saveDoc = await bodyDoc.save();
@@ -75,7 +77,7 @@ const updateHoliday = async (req, res) => {
                 message: "Validation Error ! id is required.",
             });
         }
-        const { holidayName, holidayDate, description } = req.body;
+        const { holidayName, holidayDate, description, location } = req.body;
         // check already added or not
         const isAlreadyExists = await holidaysModel.findOne({holiday_id:holiday_id});
         if (!isAlreadyExists) {
@@ -94,6 +96,7 @@ const updateHoliday = async (req, res) => {
                 holidayName: holidayName || isAlreadyExists.holidayName,
                 holidayDate: holidayDate || isAlreadyExists.holidayDate,
                 description: description || isAlreadyExists.description,
+                location: location || isAlreadyExists.location,
             },
             { new: true }
         )

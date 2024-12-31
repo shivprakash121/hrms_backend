@@ -335,6 +335,20 @@ const requestCompOff = async (req, res) => {
                 message: "Invalid token",
             });
         }
+        // check already applied for the same date
+        const existingCompOff = await CompOff.findOne({
+            employeeId: req.params.employeeId,
+            compOffDate: compOffDate
+        });
+        
+        if (existingCompOff) {
+            return res.status(400).json({
+                message: "Compensatory off already applied for the same date.",
+                statusCode: 400,
+                statusValue: "error"
+            });
+        }
+
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
         // Get current date and time in IST
         const getIndiaCurrentDateTime = () => {
@@ -361,7 +375,8 @@ const requestCompOff = async (req, res) => {
             reason,
             approvedBy: getUser.managerId || "",
             appliedDate:dateTime,
-            totalDays:"1"
+            totalDays:"1",
+            // comments:"Approved by manager"
         });
 
         // Save to the database
@@ -430,6 +445,8 @@ const actionCompOff = async (req, res) => {
             });
         }
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId }).lean();
+        // const test = await CompOff.find({});
+        // console.log(11, test)
 
         if (!getUser) {
             return res.status(404).json({
@@ -439,7 +456,7 @@ const actionCompOff = async (req, res) => {
             });
         }
 
-        if (getUser.role !== "Manager") {
+        if (getUser.role !== "Manager" || !getUser.role !== "HR-Admin") {
             return res.status(403).json({
                 statusCode: 403,
                 statusValue: "FAIL",
@@ -465,12 +482,15 @@ const actionCompOff = async (req, res) => {
 
         const dateTime = getIndiaCurrentDateTime();
         const compOffData = await CompOff.findOne({_id: req.params.id})
+        const empData = await employeeModel.findOne({employeeId:compOffData.employeeId})
         // Create a new Comp Off request
         const compOffRequest = await CompOff.findOneAndUpdate(
             {_id: req.params.id},
             { 
                 status:req.body.status,
-                approvedDate:dateTime
+                approvedDate:dateTime,
+                comments: "Action taken by manager",
+                approvedBy:empData?.managerId || "NA"
             }
         );
         if (req.body.status === "Approved") {
@@ -522,6 +542,7 @@ const actionForLeavApplication = async (req, res) => {
     try {
         const schema = Joi.object({
             status: Joi.string().valid("Approved", "Rejected").required(),
+            remarks: Joi.string().allow("").optional(),
         });
         let result = schema.validate(req.body);
         if (result.error) {
@@ -622,6 +643,7 @@ const actionForLeavApplication = async (req, res) => {
                 status: req.body.status,
                 approvedDateTime: dateTime,
                 approvedBy: getUser.employeeId,
+                remarks:req.body.remarks || ""
             }
         );
 
@@ -649,6 +671,33 @@ const actionForLeavApplication = async (req, res) => {
 };
 
 
+const deleteLeavApplication = async (req, res) => {
+    try {
+        // Update leave application status
+        const updateDoc = await leaveTakenHistoryModel.findOneAndDelete({ _id: req.params.id });
+        if (updateDoc) {
+            return res.status(200).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Data deleted successfully.",
+            });
+        }
+
+        return res.status(400).json({
+            statusCode: 400,
+            statusValue: "FAIL",
+            message: "Wrong id || Data not deleted successfully.",
+        });
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+};
+
 
 const actionForRegularization = async (req, res) => {
     try {
@@ -656,7 +705,7 @@ const actionForRegularization = async (req, res) => {
             status: Joi.string().valid("Approved", "Rejected").required(),
         });
         let result = schema.validate(req.body);
-        // console.log(req.body) 
+
         if (result.error) {
             return res.status(400).json({
                 statusValue: "FAIL",
@@ -664,7 +713,8 @@ const actionForRegularization = async (req, res) => {
                 message: result.error.details[0].message,
             });
         }
-        // get current date and time
+
+        // Get current date and time
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
             const date = new Date(indiaTime);
@@ -681,21 +731,72 @@ const actionForRegularization = async (req, res) => {
             return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         };
 
-        const dateTime = getIndiaCurrentDateTime()
+        const dateTime = getIndiaCurrentDateTime();
+        const { status } = req.body;
+        
+        // check if given req is Pending
+        // Check if already Approved
+        const isExists = await leaveTakenHistoryModel.findOne({
+            _id: req.params.id,
+            status: "Approved",
+        });
+
+        if (isExists) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: "This request has already been approved.",
+            });
+        }
 
         const updateDoc = await leaveTakenHistoryModel.findOneAndUpdate(
             { _id: req.params.id },
             {
                 status: req.body.status,
-                approvedDateTime: dateTime
-            })
-        if (updateDoc) {
+                approvedDateTime: dateTime,
+            }
+        );
+
+        const leaveData = await leaveTakenHistoryModel.findOne({ _id: req.params.id });
+        const employeeId = leaveData?.employeeId;
+
+        if (status === "Approved") {
+            const updatedEmployee = await employeeModel.findOneAndUpdate(
+                { employeeId: employeeId },
+                [
+                    {
+                        $set: {
+                            maxRegularization: {
+                                $toString: { $subtract: [{ $toInt: "$maxRegularization" }, 1] },
+                            },
+                        },
+                    },
+                ],
+                { new: true }
+            );
+
+            if (updatedEmployee) {
+                return res.status(200).json({
+                    message: "Regularization updated successfully",
+                    statusCode: 200,
+                    statusValue: "Success",
+                    data: updatedEmployee,
+                });
+            } else {
+                return res.status(404).json({
+                    message: "Employee not found",
+                    statusCode: 404,
+                    statusValue: "Error",
+                });
+            }
+        } else if (status === "Rejected") {
             return res.status(200).json({
+                message: "Status is Rejected, no changes made",
                 statusCode: 200,
-                statusValue: "SUCCESS",
-                message: "Data updated successfully.",
+                statusValue: "Success",
             });
         }
+
         return res.status(400).json({
             statusCode: 400,
             statusValue: "FAIL",
@@ -707,9 +808,9 @@ const actionForRegularization = async (req, res) => {
             statusValue: "FAIL",
             message: error.message,
             error: error.message,
-        });
+        });  
     }
-}
+};
 
 
 const updateLeaveStatus = async (req, res) => {
@@ -846,47 +947,97 @@ const getLeavesTakenByEmpId = async (req, res) => {
 
         const aggregateLogic = [
             {
-                $match: { employeeId: req.params.employeeId }
+                $match: {
+                    employeeId: req.params.employeeId,
+                },
             },
             {
                 $lookup: {
                     from: "employees",
                     localField: "employeeId",
                     foreignField: "employeeId",
-                    as: "employeeInfo"
-                }
+                    as: "employeeInfo",
+                },
             },
             {
                 $unwind: {
                     path: "$employeeInfo",
-                    preserveNullAndEmptyArrays: false // Ensures no documents with empty employeeInfo are returned
-                }
+                    preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
+                },
+            },
+            {
+                $addFields: {
+                    statusPriority: {
+                        $switch: {
+                            branches: [
+                                { case: { $eq: ["$status", "Pending"] }, then: 1 },
+                                { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+                            ],
+                            default: 4, // Fallback priority for unexpected statuses
+                        },
+                    },
+                },
+            },
+            {
+                $sort: { statusPriority: 1, createdAt: -1 },
             },
             {
                 $replaceRoot: {
                     newRoot: {
-                        $mergeObjects: ["$$ROOT", "$employeeInfo"]
-                    }
-                }
+                        $mergeObjects: [
+                            "$$ROOT",
+                            {
+                                employeeInfo: {
+                                    employeeName: "$employeeInfo.employeeName",
+                                    employeeCode: "$employeeInfo.employeeCode",
+                                    gender: "$employeeInfo.gender",
+                                    departmentId: "$employeeInfo.departmentId",
+                                    designation: "$employeeInfo.designation",
+                                    doj: "$employeeInfo.doj",
+                                    employmentType: "$employeeInfo.employmentType",
+                                    employeeStatus: "$employeeInfo.employeeStatus",
+                                    accountStatus: "$employeeInfo.accountStatus",
+                                    residentialAddress: "$employeeInfo.residentialAddress",
+                                    permanentAddress: "$employeeInfo.permanentAddress",
+                                    contactNo: "$employeeInfo.contactNo",
+                                    email: "$employeeInfo.email",
+                                    dob: "$employeeInfo.dob",
+                                    bloodGroup: "$employeeInfo.bloodGroup",
+                                    workPlace: "$employeeInfo.workPlace",
+                                    emergencyContact: "$employeeInfo.emergencyContact",
+                                    managerId: "$employeeInfo.managerId",
+                                    leaveBalance: "$employeeInfo.leaveBalance",
+                                    role: "$employeeInfo.role",
+                                },
+                            },
+                        ],
+                    },
+                },
             },
             {
                 $project: {
-                    "__v": 0,
-                    "createdAt": 0,
-                    "updatedAt": 0,
-                    "employeeInfo.dor": 0,
-                    "employeeInfo.doc": 0,
-                    "employeeInfo.__v": 0
-                }
+                    employeeInfo: 1,
+                    leaveType: 1,
+                    leaveStartDate: 1,
+                    leaveEndDate: 1,
+                    totalDays: 1,
+                    reason: 1,
+                    status: 1,
+                    approvedBy: 1,
+                    approvedDateTime: 1,
+                    dateTime: 1,
+                    location:1,
+                    remarks:1
+                },
             },
             {
                 $facet: {
                     metadata: [{ $count: "totalRecords" }],
-                    data: [{ $skip: skip }, { $limit: limitNumber }] // Apply pagination
-                }
-            }
+                    data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                },
+            },
         ];
-
         const aggResult = await leaveTakenHistoryModel.aggregate(aggregateLogic);
         const totalRecords = aggResult[0]?.metadata[0]?.totalRecords || 0;
         const totalPages = Math.ceil(totalRecords / limitNumber);
@@ -952,25 +1103,22 @@ const getAllLeaves = async (req, res) => {
         const aggregateLogic = [
             {
                 $match: {
-                    employeeId: getUser.employeeId
-                }
+                    employeeId: getUser.employeeId,
+                },
             },
             {
                 $lookup: {
                     from: "employees",
                     localField: "employeeId",
                     foreignField: "employeeId",
-                    as: "employeeInfo"
-                }
-            },
-            {
-                $sort: { createdAt: -1 }
+                    as: "employeeInfo",
+                },
             },
             {
                 $unwind: {
                     path: "$employeeInfo",
-                    preserveNullAndEmptyArrays: false // Ensures no documents with empty employeeInfo are returned
-                }
+                    preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
+                },
             },
             {
                 $addFields: {
@@ -992,31 +1140,64 @@ const getAllLeaves = async (req, res) => {
             {
                 $replaceRoot: {
                     newRoot: {
-                        $mergeObjects: ["$$ROOT", "$employeeInfo"]
-                    }
-                }
+                        $mergeObjects: [
+                            "$$ROOT",
+                            {
+                                employeeInfo: {
+                                    employeeName: "$employeeInfo.employeeName",
+                                    employeeCode: "$employeeInfo.employeeCode",
+                                    gender: "$employeeInfo.gender",
+                                    departmentId: "$employeeInfo.departmentId",
+                                    designation: "$employeeInfo.designation",
+                                    doj: "$employeeInfo.doj",
+                                    employmentType: "$employeeInfo.employmentType",
+                                    employeeStatus: "$employeeInfo.employeeStatus",
+                                    accountStatus: "$employeeInfo.accountStatus",
+                                    residentialAddress: "$employeeInfo.residentialAddress",
+                                    permanentAddress: "$employeeInfo.permanentAddress",
+                                    contactNo: "$employeeInfo.contactNo",
+                                    email: "$employeeInfo.email",
+                                    dob: "$employeeInfo.dob",
+                                    bloodGroup: "$employeeInfo.bloodGroup",
+                                    workPlace: "$employeeInfo.workPlace",
+                                    emergencyContact: "$employeeInfo.emergencyContact",
+                                    managerId: "$employeeInfo.managerId",
+                                    leaveBalance: "$employeeInfo.leaveBalance",
+                                    role: "$employeeInfo.role",
+                                },
+                            },
+                        ],
+                    },
+                },
             },
             {
                 $project: {
-                    "__v": 0,
-                    "createdAt": 0,
-                    "updatedAt": 0,
-                    "employeeInfo.dor": 0,
-                    "employeeInfo.doc": 0,
-                    "employeeInfo.__v": 0,
-                    "employeeInfo.employeeId": 0,
-                    "employeeInfo._id": 0
-                }
+                    employeeInfo: 1,
+                    leaveType: 1,
+                    leaveStartDate: 1,
+                    leaveEndDate: 1,
+                    totalDays: 1,
+                    reason: 1,
+                    status: 1,
+                    approvedBy: 1,
+                    approvedDateTime: 1,
+                    dateTime: 1,
+                    location:1,
+                    remarks:1
+                },
             },
             {
                 $facet: {
                     metadata: [{ $count: "totalRecords" }],
-                    data: [{ $skip: skip }, { $limit: limitNumber }] // Apply pagination
-                }
-            }
+                    data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                },
+            },
         ];
-
+        
         const aggResult = await leaveTakenHistoryModel.aggregate(aggregateLogic);
+        
+        
+        
         // console.log('check', aggResult[0]?.metadata)
 
         const totalRecords = aggResult[0]?.metadata[0]?.totalRecords || 0;
@@ -1167,7 +1348,8 @@ const getAllPendingLeaves = async (req, res) => {
                         approvedBy: 1,
                         approvedDateTime: 1,
                         dateTime: 1,
-                        location:1
+                        location:1,
+                        remarks:1
                     },
                 },
                 {
@@ -1261,7 +1443,8 @@ const getAllPendingLeaves = async (req, res) => {
                         approvedBy: 1,
                         approvedDateTime: 1,
                         dateTime: 1,
-                        location:1
+                        location:1,
+                        remarks:1
                     },
                 },
                 {
@@ -1508,6 +1691,88 @@ const getAllPendingCompoff = async (req, res) => {
                 },
             ];
 
+        } else if (getUser.role == "Employee") {
+            aggregateLogic = [
+                {
+                    $match: {
+                        employeeId: getUser.employeeId,
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "employees",
+                        localField: "employeeId",
+                        foreignField: "employeeId",
+                        as: "employeeInfo",
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$employeeInfo",
+                        preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
+                    },
+                },
+                {
+                    $addFields: {
+                        statusPriority: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ["$status", "Pending"] }, then: 1 },
+                                    { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                    { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+                                ],
+                                default: 4, // Fallback priority for unexpected statuses
+                            },
+                        },
+                    },
+                },
+                {
+                    $sort: { statusPriority: 1, createdAt: -1 },
+                },
+                {
+                    $replaceRoot: {
+                        newRoot: {
+                            $mergeObjects: [
+                                "$$ROOT",
+                                {
+                                    employeeInfo: {
+                                        employeeName: "$employeeInfo.employeeName",
+                                        employeeCode: "$employeeInfo.employeeCode",
+                                        gender: "$employeeInfo.gender",
+                                        departmentId: "$employeeInfo.departmentId",
+                                        designation: "$employeeInfo.designation",
+                                        doj: "$employeeInfo.doj",
+                                        employmentType: "$employeeInfo.employmentType",
+                                        employeeStatus: "$employeeInfo.employeeStatus",
+                                        contactNo: "$employeeInfo.contactNo",
+                                        email: "$employeeInfo.email",
+                                        managerId: "$employeeInfo.managerId",
+                                        leaveBalance: "$employeeInfo.leaveBalance",
+                                        role: "$employeeInfo.role",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+                {
+                    $project: {
+                        employeeInfo: 1,
+                        appliedDate: 1,
+                        compOffDate: 1,
+                        reason: 1, 
+                        status: 1,
+                        comments: 1,
+                        totalDays: 1,
+                    },
+                },
+                {
+                    $facet: {
+                        metadata: [{ $count: "totalRecords" }],
+                        data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                    },
+                },
+            ];
         }
 
         const aggResult = await CompOff.aggregate(aggregateLogic);
@@ -1558,5 +1823,6 @@ module.exports = {
     getAllPendingLeaves,
     requestCompOff,
     getAllPendingCompoff,
-    actionCompOff
+    actionCompOff,
+    deleteLeavApplication
 }

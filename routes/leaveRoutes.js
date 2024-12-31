@@ -8,6 +8,8 @@ const leaveController = require("../controllers/leaveController");
 router.post('/apply-leave/:employeeId', leaveController.applyLeave);
 router.put('/action-for-leave-application/:id', authMiddleware, leaveController.actionForLeavApplication);
 
+router.delete('/delete-leave-application/:id', leaveController.deleteLeavApplication);
+
 router.get('/get-employee-leave/:employeeId', leaveController.getLeavesTakenByEmpId);
 router.get('/get-all-leaves', authMiddleware, leaveController.getAllLeaves);
 

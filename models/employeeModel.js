@@ -58,6 +58,7 @@ const employeeSchema = new mongoose.Schema({
   teamLeadId: { type: String, default: "" },
   workingDays:{ type: String, default: "5" },
   pancardNo: { type: String, default: "" },
+  maxRegularization: { type: String, default: "3" },
   leaveBalance: { type: leaveBalanceSchema, default: () => ({}) },
   role: {
     type: String,

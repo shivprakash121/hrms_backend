@@ -39,6 +39,10 @@ const leaveTakenHistorySchema = new mongoose.Schema({
     type: String,
     default: ""
   },
+  remarks:{
+    type: String,
+    default: ""
+  },
   approvedDateTime: { type: String, default: "" },
   dateTime:{ type: String, default:"" },  
   createdAt: { type: Date, default: Date.now }, 

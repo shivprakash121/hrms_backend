@@ -11,7 +11,8 @@ router.post('/logout', authMiddleware, authController.logout);
 
 
 router.put('/update/:employeeId', authController.updateEmployeeById);
-router.get('/get-all', authController.getAllEmployeeList); 
+router.get('/get-all', authController.getAllEmployeeList);
+router.get('/get-emp-list-by-manager', authMiddleware, authController.getEmployeeListByManagerId); 
 router.get('/get-employee-details/:employeeId', authController.getEmpDetailsById);
 router.delete('/delete-employee/:employeeId', authController.deleteEmpById);
 router.delete('/delete-employee/:employeeId', authController.deleteEmpById);

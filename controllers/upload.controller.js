@@ -29,23 +29,23 @@ exports.uploadMedicalReport = async (req, res) => {
 exports.uploadEmployeeFile = async (req, res) => {
     try {
         // Check if a file is provided
-        if (!req.file) {
-            return res.status(400).json({
-                statusCode: 400,
-                statusValue: "FAIL",
-                message: "Error! File is required.",
-            });
-        }
+        // if (!req.file) {
+        //     return res.status(400).json({
+        //         statusCode: 400,
+        //         statusValue: "FAIL",
+        //         message: "Error! File is required.",
+        //     });
+        // }
 
         // Extract and validate the request body
-        const { documentName, docType, employeeId } = req.body;
+        const { documentName, docType, employeeId, location } = req.body;
 
         // Validate `documentName` and `docType`
-        if (!documentName || !docType) {
+        if (!documentName || !docType || !location) {
             return res.status(400).json({
                 statusCode: 400,
                 statusValue: "FAIL",
-                message: "Document name and docType are required.",
+                message: "Document name, location and docType are required.",
             });
         }
 
@@ -62,7 +62,7 @@ exports.uploadEmployeeFile = async (req, res) => {
         const bodyDoc = new employeeDocModel({
             documentName,
             docType,
-            location: req.file.location,
+            location,
             employeeId: docType === "Private" ? employeeId : employeeId || "", // Optional for "Public"
         });
 
@@ -74,7 +74,8 @@ exports.uploadEmployeeFile = async (req, res) => {
             return res.status(201).json({
                 statusCode: 201,
                 statusValue: "SUCCESS",
-                message: "File uploaded successfully.",
+                message: "File data saved successfully.",
+                data:saveDoc
             });
         }
     } catch (error) {
@@ -92,7 +93,6 @@ exports.uploadEmployeeFile = async (req, res) => {
 exports.getEmployeeDocs = async (req, res) => {
     // req.file contains a file object  
     try {
-       
         const empDocList = await employeeDocModel.find({docType:"Public"})
         if (empDocList) {
             return res.status(200).json({
@@ -113,12 +113,9 @@ exports.getEmployeeDocs = async (req, res) => {
     }
 }
 
-
 exports.getEmployeeDocs2 = async (req, res) => {
-    // req.file contains a file object  
     try {
-       
-        const empDocList = await employeeDocModel.find({employeeId:req.params.employeeId,docType:"Private"})
+        const empDocList = await employeeDocModel.find({employeeId:req.params.employeeId, docType:"Private"})
         if (empDocList) {
             return res.status(200).json({
                 statusCode: 200,
@@ -127,6 +124,35 @@ exports.getEmployeeDocs2 = async (req, res) => {
                 data:empDocList
             });
         }
+
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+}
+
+exports.deleteDocs = async (req, res) => {
+    // req.file contains a file object  
+    try {
+       
+        const empDocList = await employeeDocModel.findOneAndDelete({_id:req.params.id});
+        if (empDocList) {
+            return res.status(200).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Documents deleted successfully.",
+                data:empDocList
+            });
+        }
+        return res.status(400).json({
+            statusCode: 400,
+            statusValue: "FAIL",
+            message: "Documents not deleted successfully.",
+        });
 
     } catch (error) {
         return res.status(500).json({

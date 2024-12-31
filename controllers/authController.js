@@ -6,6 +6,7 @@ const redisClient = require("../config/redisClient");
 const jwt = require("jsonwebtoken");
 const Joi = require("joi");
 const blacklist = require("../utils/blacklist");
+const departmentModel = require("../models/departmentModel");
 // console.log(process.env.JWT_SECRET)
 
 const registerEmployee = async (req, res) => {
@@ -175,7 +176,10 @@ const employeeLogin = async (req, res) => {
             process.env.JWT_SECRET,
             { expiresIn: "15d" }
         );
-
+        
+        // dept data
+         // Fetch department data based on employee's departmentId
+        const deptData = await departmentModel.findOne({ departmentId: employee.departmentId });
         return res.status(200).json({
             statusCode: 200,
             statusValue: "SUCCESS",
@@ -189,7 +193,7 @@ const employeeLogin = async (req, res) => {
                 contactNo: employee.contactNo,
                 designation:employee.designation,
                 gender:employee.gender,
-                departmentId:employee.departmentId,
+                // departmentName: deptData.departmentName || "Department not assigned",
                 token,
 
             },
@@ -287,6 +291,78 @@ const updateEmployeeById = async (req, res) => {
     }
 };
 
+const getEmployeeListByManagerId = async (req, res) => {
+    try {
+        // Extract pagination parameters from the request query
+        const { page = 1, limit = 10 } = req.query;
+
+        // Ensure `page` and `limit` are integers
+        const pageNumber = parseInt(page, 10);
+        const limitNumber = parseInt(limit, 10);
+
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Token is required",
+            });
+        }
+        
+        // Decode the token to get employee details
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Invalid token",
+            });
+        }
+        // Calculate the total number of employees
+        const totalCount = await employeeModel.countDocuments({managerId: decoded.employeeId});
+
+        if (totalCount === 0) {
+            return res.status(404).json({
+                statusCode: 404,
+                statusValue: "FAIL",
+                message: "No employees found.",
+            });
+        }
+
+        // Calculate total pages
+        const totalPages = Math.ceil(totalCount / limitNumber);
+
+        // Retrieve paginated employee records
+        const employees = await employeeModel
+            .find({managerId:decoded.employeeId})
+            .skip((pageNumber - 1) * limitNumber)
+            .limit(limitNumber);
+
+        // Success response
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Employee list retrieved successfully.",
+            data: employees,
+            totalRecords: totalCount,
+            totalPages,
+            currentPage: pageNumber,
+            limit: limitNumber,
+        });
+    } catch (error) {
+        console.error(error);
+
+        // Error response
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: "Error retrieving employee list.",
+            error: error.message,
+        });
+    }
+};
+
+
 const getAllEmployeeList = async (req, res) => {
     try {
         // Extract pagination parameters from the request query
@@ -339,6 +415,7 @@ const getAllEmployeeList = async (req, res) => {
         });
     }
 };
+
 
 
 const getEmpDetailsById = async (req, res) => {
@@ -430,5 +507,6 @@ module.exports = {
     employeeLogin,
     logout,
     getEmpDetailsById,
-    deleteEmpById
+    deleteEmpById,
+    getEmployeeListByManagerId
 }
