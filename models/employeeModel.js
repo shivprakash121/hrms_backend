@@ -9,7 +9,7 @@ const leaveBalanceSchema = new mongoose.Schema({
   earnedLeave: { type: String, default: "0" },
   paternityLeave: { type: String, default: "0" },
   maternityLeave: { type: String, default: "0" },
-  compOffLeave: { type: String, default: "0" },
+  compOffLeave: { type: String, default: "0" },   
 });
 
 const employeeSchema = new mongoose.Schema({
@@ -59,6 +59,8 @@ const employeeSchema = new mongoose.Schema({
   workingDays:{ type: String, default: "5" },
   pancardNo: { type: String, default: "" },
   maxRegularization: { type: String, default: "3" },
+  otp:{ type: String, default:"" },
+  isOtpVerified:{ type: Boolean, default: false },
   leaveBalance: { type: leaveBalanceSchema, default: () => ({}) },
   role: {
     type: String,

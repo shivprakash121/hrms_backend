@@ -6,6 +6,7 @@ require("dotenv").config({ path: "../.env" });
 const AWS = require('aws-sdk');  
 const leaveTakenHistoryModel = require('../models/leaveTakenHistoryModel');
 const employeeDocModel = require('../models/employeeDocsModel');
+const employeeModel = require('../models/employeeModel');
 
 const s33 = new AWS.S3();
 
@@ -26,6 +27,21 @@ exports.uploadMedicalReport = async (req, res) => {
     }
 }    
 
+
+exports.uploadProfileImage = async (req, res) => {
+    // req.file contains a file object  
+    res.json(req.file);
+    // console.log(req.file.fieldname, req.params.deviceId)
+    if (req.file) {
+        await employeeModel.findOneAndUpdate({
+            employeeId:req.params.employeeId
+        },
+        {
+            employeePhoto:req.file.location
+        }
+    )
+    }
+}
 exports.uploadEmployeeFile = async (req, res) => {
     try {
         // Check if a file is provided

@@ -120,7 +120,7 @@ cron.schedule('0 0 1 * *', async () => {
     }
 });
 
-// Cron job for
+// Cron job for auto credited medicalLeave in jan by 6
 // Cron job for January 1st at midnight
 cron.schedule('0 0 1 1 *', async () => {
     console.log('Running cron job to reset medicalLeave to 6 on January 1st...');
@@ -138,6 +138,7 @@ cron.schedule('0 0 1 1 *', async () => {
     }
 });
 
+// Cron job for auto credited medicalLeave in july by 6
 // Cron job for July 1st at midnight
 cron.schedule('0 0 1 7 *', async () => {
     console.log('Running cron job to reset medicalLeave to 6 on July 1st...');
@@ -155,24 +156,41 @@ cron.schedule('0 0 1 7 *', async () => {
     }
 });
 
-// Cron job to credit 4 earned leaves every quarter
-cron.schedule('0 0 1 1,4,7,10 *', async () => {
+// Cron job for auto incremented earnedLeave quaterly by 4
+cron.schedule('30 0 1 1,4,7,10 *', async () => {
     console.log('Running cron job to credit 4 earned leaves...');
 
     try {
-        // Update all employees' earnedLeave by adding 4 to the existing value
-        const result = await employeeModel.updateMany(
-            {},
-            {
-                $inc: { 'leaveBalance.earnedLeave': 4 }, // Increment earnedLeave by 4
-            }
+        await employeeModel.updateMany(
+            { 'leaveBalance.earnedLeave': { $exists: false } },
+            { $set: { 'leaveBalance.earnedLeave': '0' } } // Initialize as string
         );
 
-        console.log(`Successfully credited 4 earned leaves for ${result.nModified} employees.`);
+        // Increment earnedLeave and ensure it is stored as a string
+        const result = await employeeModel.updateMany(
+            {},
+            [
+                {
+                    $set: {
+                        'leaveBalance.earnedLeave': {
+                            $toString: {
+                                $add: [
+                                    { $toInt: '$leaveBalance.earnedLeave' },  
+                                    4
+                                ]
+                            }
+                        }
+                    }
+                }
+            ]
+        );
+
+        console.log(`Successfully credited 4 earned leaves for ${result.modifiedCount} employees.`);
     } catch (error) {
         console.error('Error crediting earned leaves:', error);
     }
 });
+
 
 
 

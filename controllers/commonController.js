@@ -19,7 +19,7 @@ const addNewHoliday = async (req, res) => {
             holidayDate: Joi.string().required(),
             description: Joi.string().required(),
             holiday_id: Joi.string().required(),
-            location: Joi.string().required(),
+            location: Joi.string().allow("").optional(),
         });
         let result = schema.validate(req.body);
         // console.log(req.body)  

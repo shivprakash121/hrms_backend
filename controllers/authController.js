@@ -8,6 +8,8 @@ const Joi = require("joi");
 const blacklist = require("../utils/blacklist");
 const departmentModel = require("../models/departmentModel");
 // console.log(process.env.JWT_SECRET)
+const bcrypt = require('bcrypt');
+const leaveTakenHistoryModel = require("../models/leaveTakenHistoryModel");
 
 const registerEmployee = async (req, res) => {
     try {
@@ -149,7 +151,7 @@ const employeeLogin = async (req, res) => {
         }
 
         // Find user by email
-        const employee = await employeeModel.findOne({ email: req.body.email });
+        const employee = await employeeModel.findOne({ $or:[{email: req.body.email},{employeeId:req.body.email}] });
         if (!employee) {
             return res.status(404).json(
                 { 
@@ -457,6 +459,45 @@ const getEmpDetailsById = async (req, res) => {
 };
 
 
+const getTodayOnleaveList = async (req, res) => {
+    try {
+        const leaveData = await leaveTakenHistoryModel.find({status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1});
+        const currentDate = new Date().toISOString().split('T')[0];
+
+        const employeesOnLeave = leaveData
+        .filter(leave => 
+            new Date(currentDate) >= new Date(leave.leaveStartDate) &&
+            new Date(currentDate) <= new Date(leave.leaveEndDate)
+        )
+        .map(leave => leave.employeeId);
+
+        const employeeIds = [...new Set(employeesOnLeave)]
+        if (employeeIds.length < 1) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Employee data not found.",
+            });
+        }
+        const empList = await employeeModel.find({employeeId:{$in: employeeIds}},{employeeId:1,employeeName:1,gender:1,designation:1,employeePhoto:1})
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Today on leave Employee list retrieved successfully.",
+            data: empList
+        });
+    } catch (error) {
+        console.error(error);
+        // Error response
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: "Error retrieving employee list.",
+            error: error.message,
+        });
+    }
+};
+
 const deleteEmpById = async (req, res) => {
     try {
         const { employeeId } = req.params;
@@ -499,6 +540,169 @@ const deleteEmpById = async (req, res) => {
 };
 
 
+const resetForgetPassword = async (req, res) => {
+    try {
+      const schema = Joi.object({
+        email: Joi.string().required(),
+      })
+      let result = schema.validate(req.body);
+      if (result.error) {
+        return res.status(400).json({
+          statusCode: 400,
+          statusValue: "FAIL",
+          message: result.error.details[0].message,
+        });
+      };
+
+      const checkUser = await employeeModel.findOne({email:req.body.email});
+      
+      if (!checkUser) {
+        return res.status(404).json({
+            message: 'User not found ! You have entered wrong email id',
+            statusCode: 404,
+            statusValue: false
+        });
+      }
+
+      var otp = Math.floor(1000 + Math.random() * 9000);
+      const saveOtp = await employeeModel.findOneAndUpdate(
+        { email: req.body.email },
+        {
+            $set: {
+                otp: otp.toString(),
+                isOtpVerified: false,
+            },
+        },
+        { new: true } // Returns the updated document
+      );
+      //   await sendOtp(checkUser.email, otp)
+    res.status(200).json({
+        statusCode: 200,                   
+        statusValue: "SUCCESS",
+        message: "OTP has been sent successfully to your registered email.",
+        otp
+      });
+    } catch (err) {
+      return res.status(500).json({
+        statusCode: 500,
+        statusValue: "FAIL",
+        message: "Internal server error.",
+        data: {
+          generatedTime: new Date(),
+          errMsg: err.stack,
+        }
+      });
+    }
+  }
+  
+  
+  const verifyOtp = async (req, res) => {
+    try {
+      // console.log(req.body)
+      const schema = Joi.object({
+        otp: Joi.string().required(),
+      })
+      let result = schema.validate(req.body);
+      if (result.error) {
+        return res.status(400).json({
+          statusCode: 400,
+          statusValue: "FAIL",
+          message: result.error.details[0].message,
+        })
+      }
+      // console.log()
+      const checkOtp = await employeeModel.find({ otp:req.body.otp });
+      if (checkOtp.length<1) {
+        console.log('Invalid OTP.');
+        // Handle invalid OTP
+        return res.status(400).json({
+            message: 'You have entered invalid or expired OTP',
+            statusCode: 400,
+            statusValue: false
+        });
+    } else {
+        const updatedUser = await employeeModel.findOneAndUpdate(
+            { otp: req.body.otp }, // Ensure the OTP matches exactly
+            { $set: { isOtpVerified: true } }, // Set isOtpVerified to true
+            { new: true } // Return the updated document
+        );
+        if (!updatedUser) {
+            console.log('Invalid or expired OTP provided.');
+            return res.status(400).json({
+                message: 'Invalid or expired OTP.',
+                statusCode: 400,
+                statusValue: false,
+            });
+        }
+        console.log('User updated successfully:', updatedUser);
+        return res.status(200).json({
+                message: 'OTP verified successfully.',
+                statusCode: 200,
+                statusValue: true,
+                user: updatedUser,
+            });
+        }
+      
+    } catch (err) {
+      return res.status(500).json({
+        statusCode: 500,
+        statusValue: "FAIL",
+        message: "Internal server error.",
+        data: {
+          generatedTime: new Date(),
+          errMsg: err.stack,
+        }
+      });
+    }
+  }
+  
+  
+  const generateNewPassword = async (req, res) => {
+    try {
+        const { email, loginPassword } = req.body;
+
+        // Generate new password hash
+        const salt = await bcrypt.genSalt();
+        const hashedPassword = await bcrypt.hash(loginPassword, salt);
+
+        // Update the user's password
+        const updatedUser = await employeeModel.findOneAndUpdate(
+            { email },
+            { loginPassword: hashedPassword },
+            { new: true } // Return the updated document
+        );
+
+        if (!updatedUser) {
+            return res.status(404).json({
+                statusCode: 404,
+                statusValue: "FAIL",
+                message: "User not found. Unable to update password.",
+            });
+        }
+
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Password updated successfully.",
+            data: updatedUser,
+        });
+    } catch (err) {
+        console.error("Error generating new password:", err);
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: "Internal server error.",
+            data: {
+                generatedTime: new Date(),
+                errorMessage: err.message,
+            },
+        });
+    }
+};
+
+  
+
+
 
 module.exports = {
     registerEmployee,
@@ -508,5 +712,9 @@ module.exports = {
     logout,
     getEmpDetailsById,
     deleteEmpById,
-    getEmployeeListByManagerId
+    getEmployeeListByManagerId,
+    resetForgetPassword,
+    verifyOtp,
+    generateNewPassword,
+    getTodayOnleaveList
 }
