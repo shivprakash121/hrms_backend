@@ -1,87 +1,87 @@
-const { connectToDB } = require("../config/dbConfig");
+// const { connectToDB } = require("../config/dbConfig");
 const AttendanceLogModel = require("../models/attendanceLogModel");
 
-// Get all tables in the database
-const getTables = async (req, res) => {
-  try {
-    const pool = await connectToDB();
-    const result = await pool.request().query(`
-      SELECT TABLE_NAME 
-      FROM INFORMATION_SCHEMA.TABLES 
-      WHERE TABLE_TYPE = 'BASE TABLE'
-    `);
-    res.status(200).json(result.recordset);
-  } catch (err) {
-    console.error("Error fetching tables:", err.message);
-    res.status(500).send(err.message);
-  }
-};
+// // Get all tables in the database
+// const getTables = async (req, res) => {
+//   try {
+//     const pool = await connectToDB();
+//     const result = await pool.request().query(`
+//       SELECT TABLE_NAME 
+//       FROM INFORMATION_SCHEMA.TABLES 
+//       WHERE TABLE_TYPE = 'BASE TABLE'
+//     `);
+//     res.status(200).json(result.recordset);
+//   } catch (err) {
+//     console.error("Error fetching tables:", err.message);
+//     res.status(500).send(err.message);
+//   }
+// };
 
-const getEmployees = async (req, res) => {
-  try {
-    const pool = await connectToDB();
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
+// const getEmployees = async (req, res) => {
+//   try {
+//     const pool = await connectToDB();
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 10;
+//     const offset = (page - 1) * limit;
 
-    let query = `
-      SELECT *
-      FROM Employees
-      WHERE Status = 'Working'
-      ORDER BY EmployeeName
-      OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
-    `;
+//     let query = `
+//       SELECT *
+//       FROM Employees
+//       WHERE Status = 'Working'
+//       ORDER BY EmployeeName
+//       OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY
+//     `;
 
-    // Query for total count of records
-    const countQuery = `
-      SELECT COUNT(*) AS TotalCount
-      FROM Employees
-      WHERE Status = 'Working'
-    `;
+//     // Query for total count of records
+//     const countQuery = `
+//       SELECT COUNT(*) AS TotalCount
+//       FROM Employees
+//       WHERE Status = 'Working'
+//     `;
 
-    const result = await pool.request().query(query);
-    const resultCount = await pool.request().query(countQuery);
+//     const result = await pool.request().query(query);
+//     const resultCount = await pool.request().query(countQuery);
 
-    const totalCount = resultCount.recordset[0].TotalCount;
-    const totalPages = Math.ceil(totalCount/limit);
+//     const totalCount = resultCount.recordset[0].TotalCount;
+//     const totalPages = Math.ceil(totalCount/limit);
 
 
-    if (result.recordsets.length > 0) {
-      return res.status(200).json({
-        statusCode: 200,
-        statusValue: "SUCCESS",
-        message: "Employee list get successfully.",
-        data: result.recordset,
-        totalRecords: totalCount,
-        totalPages: totalPages,
-        currentPage: page,
-        limit: limit
-      });
-    } else {
-      return res.status(400).json({ 
-        statusCode: 400,
-        statusValue: "FAIL",
-        message: "No records found." 
-      });
-    }
-  } catch (err) {
-    console.error("Error fetching employees:", err.message);
-    res.status(500).send(err.message);
-  }
-};
+//     if (result.recordsets.length > 0) {
+//       return res.status(200).json({
+//         statusCode: 200,
+//         statusValue: "SUCCESS",
+//         message: "Employee list get successfully.",
+//         data: result.recordset,
+//         totalRecords: totalCount,
+//         totalPages: totalPages,
+//         currentPage: page,
+//         limit: limit
+//       });
+//     } else {
+//       return res.status(400).json({ 
+//         statusCode: 400,
+//         statusValue: "FAIL",
+//         message: "No records found." 
+//       });
+//     }
+//   } catch (err) {
+//     console.error("Error fetching employees:", err.message);
+//     res.status(500).send(err.message);
+//   }
+// };
 
 
 //For PunchTime Details
-const getPunchTimeDetails = async (req, res) => {
-  try {
-    const pool = await connectToDB();
-    const result = await pool.request().query("SELECT * FROM PunchTimeDetails");
-    res.status(200).json(result.recordset);
-  } catch (err) {
-    console.error("Error fetching PunchTimeDetails:", err.message);
-    res.status(500).send(err.message);
-  }
-};
+// const getPunchTimeDetails = async (req, res) => {
+//   try {
+//     const pool = await connectToDB();
+//     const result = await pool.request().query("SELECT * FROM PunchTimeDetails");
+//     res.status(200).json(result.recordset);
+//   } catch (err) {
+//     console.error("Error fetching PunchTimeDetails:", err.message);
+//     res.status(500).send(err.message);
+//   }
+// };
 
 
 // Get all records from AttendanceLogs
@@ -147,20 +147,20 @@ const getPunchTimeDetails = async (req, res) => {
 
 //Get AttendanceLogsUpdateDetails
 
-const getAttendanceLogsUpdateDetails = async (req, res) => {
-  try {
-    const pool = await connectToDB();
-    const result = await pool
-      .request()
-      .query("SELECT * FROM AttendanceLogUpdateDetails");
+// const getAttendanceLogsUpdateDetails = async (req, res) => {
+//   try {
+//     const pool = await connectToDB();
+//     const result = await pool
+//       .request()
+//       .query("SELECT * FROM AttendanceLogUpdateDetails");
 
-    // console.log("RESULT IS",result);
-    res.status(200).json(result.recordset);
-  } catch (err) {
-    console.error("Error fetching attendance logs:", err.message);
-    res.status(500).send(err.message);
-  }
-};
+//     // console.log("RESULT IS",result);
+//     res.status(200).json(result.recordset);
+//   } catch (err) {
+//     console.error("Error fetching attendance logs:", err.message);
+//     res.status(500).send(err.message);
+//   }
+// };
 
 
 // const getAllAttendanceLogs = async (req, res) => {
@@ -637,76 +637,70 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
 };
 
 
-const updateEmployeeDetailsByEmployeeId = async (req, res) => {
-  try {
-    const { employeeId, newPassword } = req.body;
+// const updateEmployeeDetailsByEmployeeId = async (req, res) => {
+//   try {
+//     const { employeeId, newPassword } = req.body;
 
-    if(!employeeId || !newPassword) {
-      return res.status(400).json({
-        statusCode: 400,
-        statusValue: "FAIL",
-        message: "EmployeeId and newPassword are required.",
-      });
-    }
+//     if(!employeeId || !newPassword) {
+//       return res.status(400).json({
+//         statusCode: 400,
+//         statusValue: "FAIL",
+//         message: "EmployeeId and newPassword are required.",
+//       });
+//     }
 
-    const pool = await connectToDB();
+//     const pool = await connectToDB();
 
-    // Update query
-    const query = `
-    UPDATE Employees
-    SET LoginPassword = @newPassword
-    WHERE EmployeeId = @employeeId;
-    `;
-    // Execute query
+//     // Update query
+//     const query = `
+//     UPDATE Employees
+//     SET LoginPassword = @newPassword
+//     WHERE EmployeeId = @employeeId;
+//     `;
+//     // Execute query
     
-    const result = await pool.request()
-    .input('newPassword', newPassword)
-    .input('employeeId', employeeId)
-    .query(query)
+//     const result = await pool.request()
+//     .input('newPassword', newPassword)
+//     .input('employeeId', employeeId)
+//     .query(query)
 
-    if(result.rowsAffected[0] > 0) {
-      return res.status(200).json({
-        statusCode: 200,
-        statusValue: "SUCCESS",
-        message: "LoginPassword updated successfully.",
-      });
-    } else {
-      return res.status(404).json({
-        statusCode: 404,
-        statusValue: "FAIL",
-        message: "EmployeeId not found.",
-      });
-    }
-  } catch (err) {
-    console.error("Error updating LoginPassword:", err.message);
-    return res.status(500).json({
-      statusCode: 500,
-      statusValue: "ERROR",
-      message: "An error occurred while updating the LoginPassword.",
-      error: err.message,
-    });
-  }
-}
+//     if(result.rowsAffected[0] > 0) {
+//       return res.status(200).json({
+//         statusCode: 200,
+//         statusValue: "SUCCESS",
+//         message: "LoginPassword updated successfully.",
+//       });
+//     } else {
+//       return res.status(404).json({
+//         statusCode: 404,
+//         statusValue: "FAIL",
+//         message: "EmployeeId not found.",
+//       });
+//     }
+//   } catch (err) {
+//     console.error("Error updating LoginPassword:", err.message);
+//     return res.status(500).json({
+//       statusCode: 500,
+//       statusValue: "ERROR",
+//       message: "An error occurred while updating the LoginPassword.",
+//       error: err.message,
+//     });
+//   }
+// }
 
-const getHolidayList = async (req, res) => {
-  try {
-    const pool = await connectToDB();
-    const result = await pool.request().query(`SELECT * FROM Holidays ORDER BY HolidayId ASC`);
-    res.status(200).json(result.recordset);
-  } catch (err) {
-    console.error("Error fetching tables:", err.message);
-    res.status(500).send(err.message);
-  }
-};
+// const getHolidayList = async (req, res) => {
+//   try {
+//     const pool = await connectToDB();
+//     const result = await pool.request().query(`SELECT * FROM Holidays ORDER BY HolidayId ASC`);
+//     res.status(200).json(result.recordset);
+//   } catch (err) {
+//     console.error("Error fetching tables:", err.message);
+//     res.status(500).send(err.message);
+//   }
+// };
 
 
 module.exports = {
-  getTables,
   getAllAttendanceLogs,
   getAttendanceLogsByEmployeeId,
-  getEmployees,
-  getPunchTimeDetails,
-  getAttendanceLogsUpdateDetails,
-  updateEmployeeDetailsByEmployeeId,
-  getHolidayList
 };

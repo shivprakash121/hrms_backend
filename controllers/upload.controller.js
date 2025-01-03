@@ -42,6 +42,7 @@ exports.uploadProfileImage = async (req, res) => {
     )
     }
 }
+
 exports.uploadEmployeeFile = async (req, res) => {
     try {
         // Check if a file is provided

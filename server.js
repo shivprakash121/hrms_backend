@@ -3,13 +3,13 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const bodyParser = require("body-parser");
 const connectToMongoDB = require("./config/mongoConfig"); 
-const {connectToDB} = require("./config/dbConfig");
+// const {connectToDB} = require("./config/dbConfig");
 const morgan = require("morgan");
 const dotenv = require("dotenv");
 dotenv.config();
 const cors = require("cors")
 const cron = require('node-cron');
-const {startAttendanceCronJob, startUpdateAttendanceCronJob} = require("./utils/attendanceCronJob.js");
+// const {startAttendanceCronJob, startUpdateAttendanceCronJob} = require("./utils/attendanceCronJob.js");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,7 +18,7 @@ app.use(bodyParser.json());
 app.use(cors());
 app.use(express.json());
 connectToMongoDB();  // for mongo conn
-connectToDB();  // for sql conn  
+// connectToDB();  // for sql conn  
 
 const mainRoutes = require('./routes/mainRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -51,7 +51,7 @@ const moment = require("moment");
 
 // cron job for dump sql data into mongodb
 // startAttendanceCronJob()
-startUpdateAttendanceCronJob();
+// startUpdateAttendanceCronJob();
 
 
 // Cron job for automatic approved compOff request
@@ -196,12 +196,6 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
         console.error('Error crediting earned leaves:', error);
     }
 });
-
-
-
-
-
-
 
 
 
