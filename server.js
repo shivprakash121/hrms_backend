@@ -9,15 +9,16 @@ const dotenv = require("dotenv");
 dotenv.config();
 const cors = require("cors")
 const cron = require('node-cron');
+const {startAttendanceCronJob, startUpdateAttendanceCronJob} = require("./utils/attendanceCronJob.js");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 app.use(bodyParser.json());
 app.use(cors());
 app.use(express.json());
 connectToMongoDB();  // for mongo conn
-connectToDB();  // for sql conn
+connectToDB();  // for sql conn  
 
 const mainRoutes = require('./routes/mainRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -45,8 +46,13 @@ app.use('/api/s3', indexRoutes);
 
 // cron job
 const employeeModel = require("./models/employeeModel");
-const CompOff = require("./models/compOffHistoryModel.js");
+const CompOff = require("./models/compOffHistoryModel.js");     
 const moment = require("moment");
+
+// cron job for dump sql data into mongodb
+// startAttendanceCronJob()
+startUpdateAttendanceCronJob();
+
 
 // Cron job for automatic approved compOff request
 // Schedule the cron job to run every day at midnight
@@ -183,7 +189,7 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
                     }
                 }
             ]
-        );
+        );  
 
         console.log(`Successfully credited 4 earned leaves for ${result.modifiedCount} employees.`);
     } catch (error) {

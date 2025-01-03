@@ -1,4 +1,5 @@
 const { connectToDB } = require("../config/dbConfig");
+const AttendanceLogModel = require("../models/attendanceLogModel");
 
 // Get all tables in the database
 const getTables = async (req, res) => {
@@ -161,77 +162,138 @@ const getAttendanceLogsUpdateDetails = async (req, res) => {
   }
 };
 
+
+// const getAllAttendanceLogs = async (req, res) => {
+//   try {
+//     const AttendanceLogModel = await AttendanceLogModel.find({})
+//     const pool = await connectToDB();
+//     // Extract query parameters
+//     const dateTo = req.query.dateTo ? req.query.dateTo.toString() : null;
+//     const dateFrom = req.query.dateFrom ? req.query.dateFrom.toString() : null;
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 10;
+//     const offset = (page - 1) * limit;
+
+//     // Build base query
+//     let query = `
+//       SELECT 
+//           Employees.EmployeeName, 
+//           Employees.EmployeeCode, 
+//           Employees.Gender, 
+//           Employees.Designation, 
+//           Employees.CategoryId,  
+//           Employees.EmployementType,  
+//           Employees.EmployeeDevicePassword, 
+//           Employees.FatherName, 
+//           Employees.MotherName, 
+//           Employees.ResidentialAddress, 
+//           Employees.PermanentAddress, 
+//           Employees.ContactNo, 
+//           Employees.Email, 
+//           Employees.DOB, 
+//           Employees.Location, 
+//           Employees.WorkPlace, 
+//           Employees.ExtensionNo, 
+//           Employees.LoginName, 
+//           Employees.LoginPassword, 
+//           Employees.EmployeePhoto,
+//           AttendanceLogs.*
+//       FROM AttendanceLogs
+//       LEFT JOIN Employees ON AttendanceLogs.EmployeeId = Employees.EmployeeId
+//     `;
+
+//     // Add optional date filters
+//     if (dateFrom && dateTo) {
+//       query += ` WHERE AttendanceLogs.AttendanceDate BETWEEN '${dateFrom}' AND '${dateTo}' `;
+//     }
+
+//      // Add pagination
+//     query += `
+//       ORDER BY AttendanceLogs.AttendanceDate DESC
+//       OFFSET ${offset} ROWS
+//       FETCH NEXT ${limit} ROWS ONLY
+//     `;
+
+//     // Get total count for metadata
+//     const countQuery = `
+//       SELECT COUNT(*) AS totalCount
+//       FROM AttendanceLogs
+//       ${dateFrom && dateTo ? `WHERE AttendanceLogs.AttendanceDate BETWEEN '${dateFrom}' AND '${dateTo}'` : ""}
+//     `;
+
+//     const [dataResult, countResult] = await Promise.all([
+//       pool.request().query(query),
+//       pool.request().query(countQuery)
+//     ]);
+
+//     const totalRecords = countResult.recordset[0].totalCount;
+//     const totalPages = Math.ceil(totalRecords / limit);
+
+//     if (dataResult.recordset.length > 0) {
+//       return res.status(200).json({
+//         statusCode: 200,
+//         statusValue: "SUCCESS",
+//         message: "Attendance records fetched successfully.",
+//         data: dataResult.recordset,
+//         totalRecords,
+//         totalPages,
+//         currentPage: page,
+//         limit,
+//       });
+//     } else {
+//       return res.status(400).json({
+//         statusCode: 400,
+//         statusValue: "FAIL",
+//         message: "No records found for the given filters."
+//       });
+//     }
+//   } catch (err) {
+//     console.error("Error fetching attendance logs:", err.message);
+//     res.status(500).json({
+//       statusCode: 500,
+//       statusValue: "ERROR",
+//       message: "An error occurred while fetching attendance logs.",
+//       error: err.message
+//     });
+//   }
+// };
+
 const getAllAttendanceLogs = async (req, res) => {
   try {
-    const pool = await connectToDB();
     // Extract query parameters
-    const dateTo = req.query.dateTo ? req.query.dateTo.toString() : null;
-    const dateFrom = req.query.dateFrom ? req.query.dateFrom.toString() : null;
+    const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : null;
+    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
-    // Build base query
-    let query = `
-      SELECT 
-          Employees.EmployeeName, 
-          Employees.EmployeeCode, 
-          Employees.Gender, 
-          Employees.Designation, 
-          Employees.CategoryId,  
-          Employees.EmployementType,  
-          Employees.EmployeeDevicePassword, 
-          Employees.FatherName, 
-          Employees.MotherName, 
-          Employees.ResidentialAddress, 
-          Employees.PermanentAddress, 
-          Employees.ContactNo, 
-          Employees.Email, 
-          Employees.DOB, 
-          Employees.Location, 
-          Employees.WorkPlace, 
-          Employees.ExtensionNo, 
-          Employees.LoginName, 
-          Employees.LoginPassword, 
-          Employees.EmployeePhoto,
-          AttendanceLogs.*
-      FROM AttendanceLogs
-      LEFT JOIN Employees ON AttendanceLogs.EmployeeId = Employees.EmployeeId
-    `;
+    // Build the filter object for MongoDB query
+    let filter = {};
 
-    // Add optional date filters
+    // Apply date range filter
     if (dateFrom && dateTo) {
-      query += ` WHERE AttendanceLogs.AttendanceDate BETWEEN '${dateFrom}' AND '${dateTo}' `;
+      filter.AttendanceDate = {
+        $gte: dateFrom,
+        $lte: dateTo
+      };
     }
 
-     // Add pagination
-    query += `
-      ORDER BY AttendanceLogs.AttendanceDate DESC
-      OFFSET ${offset} ROWS
-      FETCH NEXT ${limit} ROWS ONLY
-    `;
+    // MongoDB query to fetch attendance records with pagination and filters
+    const dataResult = await AttendanceLogModel.find(filter)
+      .skip(offset)
+      .limit(limit)
+      .sort({ AttendanceDate: -1 });
 
-    // Get total count for metadata
-    const countQuery = `
-      SELECT COUNT(*) AS totalCount
-      FROM AttendanceLogs
-      ${dateFrom && dateTo ? `WHERE AttendanceLogs.AttendanceDate BETWEEN '${dateFrom}' AND '${dateTo}'` : ""}
-    `;
-
-    const [dataResult, countResult] = await Promise.all([
-      pool.request().query(query),
-      pool.request().query(countQuery)
-    ]);
-
-    const totalRecords = countResult.recordset[0].totalCount;
+    // Get the total count of records for pagination metadata
+    const totalRecords = await AttendanceLogModel.countDocuments(filter);
     const totalPages = Math.ceil(totalRecords / limit);
 
-    if (dataResult.recordset.length > 0) {
+    if (dataResult.length > 0) {
       return res.status(200).json({
         statusCode: 200,
         statusValue: "SUCCESS",
         message: "Attendance records fetched successfully.",
-        data: dataResult.recordset,
+        data: dataResult,
         totalRecords,
         totalPages,
         currentPage: page,
@@ -366,18 +428,138 @@ const getAllAttendanceLogs = async (req, res) => {
 //   }
 // };
 
+// const getAttendanceLogsByEmployeeId = async (req, res) => {
+//   try {
+//     const pool = await connectToDB();
+
+//     // Extract query parameters
+//     const employeeId = req.params.employeeId;
+//     const dateTo = req.query.dateTo
+//       ? new Date(req.query.dateTo).toISOString().split("T")[0]
+//       : new Date().toISOString().split("T")[0]; // Default to current date if dateTo is not provided
+//     const dateFrom = req.query.dateFrom
+//       ? new Date(req.query.dateFrom).toISOString().split("T")[0]
+//       : null; // No default for dateFrom
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 20;
+//     const offset = (page - 1) * limit;
+
+//     // Validate employeeId
+//     if (!employeeId) {
+//       return res.status(400).json({
+//         statusCode: 400,
+//         statusValue: "FAIL",
+//         message: "EmployeeId is required to fetch attendance logs.",
+//       });
+//     }
+
+//     // Ensure dateTo does not exceed the current date
+//     const currentDate = new Date().toISOString().split("T")[0];
+//     if (dateTo > currentDate) {
+//       return res.status(400).json({
+//         statusCode: 400,
+//         statusValue: "FAIL",
+//         message: "dateTo cannot be greater than the current date.",
+//       });
+//     }
+
+//     // Build base query
+//     let query = `
+//     SELECT 
+//         Employees.EmployeeName, 
+//         Employees.EmployeeCode, 
+//         Employees.Gender, 
+//         Employees.Designation, 
+//         Employees.CategoryId,  
+//         Employees.EmployementType,  
+//         Employees.EmployeeDevicePassword, 
+//         Employees.FatherName, 
+//         Employees.MotherName, 
+//         Employees.ResidentialAddress, 
+//         Employees.PermanentAddress, 
+//         Employees.ContactNo, 
+//         Employees.Email, 
+//         Employees.DOB, 
+//         Employees.Location, 
+//         Employees.WorkPlace, 
+//         Employees.ExtensionNo, 
+//         Employees.LoginName, 
+//         Employees.LoginPassword, 
+//         Employees.EmployeePhoto,
+//         AttendanceLogs.*
+//         FROM AttendanceLogs
+//         LEFT JOIN Employees 
+//           ON AttendanceLogs.EmployeeId = Employees.EmployeeId
+//         WHERE 
+//           (Employees.EmployeeId = '${employeeId}' OR Employees.EmployeeCode = '${employeeId}')
+//           AND AttendanceLogs.AttendanceDate <= '${dateTo}'
+//       `;
+
+//     // Add optional dateFrom filter
+//     if (dateFrom) {
+//       query += ` AND AttendanceLogs.AttendanceDate >= '${dateFrom}' `;
+//     }
+
+//     // Add pagination
+//     query += `
+//       ORDER BY AttendanceLogs.AttendanceDate DESC
+//       OFFSET ${offset} ROWS
+//       FETCH NEXT ${limit} ROWS ONLY
+//     `;
+
+//     // Get total count for metadata
+//     const countQuery = `
+//       SELECT COUNT(*) AS totalCount
+//       FROM AttendanceLogs
+//       LEFT JOIN Employees ON AttendanceLogs.EmployeeId = Employees.EmployeeId
+//       WHERE (Employees.EmployeeId = '${employeeId}' OR Employees.EmployeeCode = '${employeeId}')
+//       AND AttendanceLogs.AttendanceDate <= '${dateTo}'
+//       ${dateFrom ? `AND AttendanceLogs.AttendanceDate >= '${dateFrom}'` : ""}
+//     `;
+
+//     const [dataResult, countResult] = await Promise.all([
+//       pool.request().query(query),
+//       pool.request().query(countQuery),
+//     ]);
+
+//     const totalRecords = countResult.recordset[0].totalCount;
+//     const totalPages = Math.ceil(totalRecords / limit);
+
+//     if (dataResult.recordset.length > 0) {
+//       return res.status(200).json({
+//         statusCode: 200,
+//         statusValue: "SUCCESS",
+//         message: "Attendance records fetched successfully.",
+//         data: dataResult.recordset,
+//         totalRecords,
+//         totalPages,
+//         currentPage: page,
+//         limit,
+//       });
+//     } else {
+//       return res.status(404).json({
+//         statusCode: 404,
+//         statusValue: "FAIL",
+//         message: "No records found for the given employee or filters.",
+//       });
+//     }
+//   } catch (err) {
+//     console.error("Error fetching attendance logs:", err.message);
+//     res.status(500).json({
+//       statusCode: 500,
+//       statusValue: "ERROR",
+//       message: "An error occurred while fetching attendance logs.",
+//       error: err.message,
+//     });
+//   }
+// };
+
 const getAttendanceLogsByEmployeeId = async (req, res) => {
   try {
-    const pool = await connectToDB();
-
     // Extract query parameters
     const employeeId = req.params.employeeId;
-    const dateTo = req.query.dateTo
-      ? new Date(req.query.dateTo).toISOString().split("T")[0]
-      : new Date().toISOString().split("T")[0]; // Default to current date if dateTo is not provided
-    const dateFrom = req.query.dateFrom
-      ? new Date(req.query.dateFrom).toISOString().split("T")[0]
-      : null; // No default for dateFrom
+    const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : new Date(); // Default to current date if dateTo is not provided
+    const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null; // No default for dateFrom
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
@@ -392,7 +574,7 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
     }
 
     // Ensure dateTo does not exceed the current date
-    const currentDate = new Date().toISOString().split("T")[0];
+    const currentDate = new Date();
     if (dateTo > currentDate) {
       return res.status(400).json({
         statusCode: 400,
@@ -401,74 +583,36 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
       });
     }
 
-    // Build base query
-    let query = `
-    SELECT 
-        Employees.EmployeeName, 
-        Employees.EmployeeCode, 
-        Employees.Gender, 
-        Employees.Designation, 
-        Employees.CategoryId,  
-        Employees.EmployementType,  
-        Employees.EmployeeDevicePassword, 
-        Employees.FatherName, 
-        Employees.MotherName, 
-        Employees.ResidentialAddress, 
-        Employees.PermanentAddress, 
-        Employees.ContactNo, 
-        Employees.Email, 
-        Employees.DOB, 
-        Employees.Location, 
-        Employees.WorkPlace, 
-        Employees.ExtensionNo, 
-        Employees.LoginName, 
-        Employees.LoginPassword, 
-        Employees.EmployeePhoto,
-        AttendanceLogs.*
-        FROM AttendanceLogs
-        LEFT JOIN Employees 
-          ON AttendanceLogs.EmployeeId = Employees.EmployeeId
-        WHERE 
-          (Employees.EmployeeId = '${employeeId}' OR Employees.EmployeeCode = '${employeeId}')
-          AND AttendanceLogs.AttendanceDate <= '${dateTo}'
-      `;
+    // Build the filter object for MongoDB query
+    let filter = {
+      $or: [
+        { EmployeeId: employeeId },
+        { EmployeeCode: employeeId }
+      ],
+      AttendanceDate: { $lte: dateTo }
+    };
 
-    // Add optional dateFrom filter
+    // Apply optional dateFrom filter
     if (dateFrom) {
-      query += ` AND AttendanceLogs.AttendanceDate >= '${dateFrom}' `;
+      filter.AttendanceDate.$gte = dateFrom;
     }
 
-    // Add pagination
-    query += `
-      ORDER BY AttendanceLogs.AttendanceDate DESC
-      OFFSET ${offset} ROWS
-      FETCH NEXT ${limit} ROWS ONLY
-    `;
+    // MongoDB query to fetch attendance records with pagination and filters
+    const dataResult = await AttendanceLogModel.find(filter)
+      .skip(offset)
+      .limit(limit)
+      .sort({ AttendanceDate: -1 });
 
-    // Get total count for metadata
-    const countQuery = `
-      SELECT COUNT(*) AS totalCount
-      FROM AttendanceLogs
-      LEFT JOIN Employees ON AttendanceLogs.EmployeeId = Employees.EmployeeId
-      WHERE (Employees.EmployeeId = '${employeeId}' OR Employees.EmployeeCode = '${employeeId}')
-      AND AttendanceLogs.AttendanceDate <= '${dateTo}'
-      ${dateFrom ? `AND AttendanceLogs.AttendanceDate >= '${dateFrom}'` : ""}
-    `;
-
-    const [dataResult, countResult] = await Promise.all([
-      pool.request().query(query),
-      pool.request().query(countQuery),
-    ]);
-
-    const totalRecords = countResult.recordset[0].totalCount;
+    // Get the total count of records for pagination metadata
+    const totalRecords = await AttendanceLogModel.countDocuments(filter);
     const totalPages = Math.ceil(totalRecords / limit);
 
-    if (dataResult.recordset.length > 0) {
+    if (dataResult.length > 0) {
       return res.status(200).json({
         statusCode: 200,
         statusValue: "SUCCESS",
         message: "Attendance records fetched successfully.",
-        data: dataResult.recordset,
+        data: dataResult,
         totalRecords,
         totalPages,
         currentPage: page,
@@ -491,7 +635,6 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
     });
   }
 };
-
 
 
 const updateEmployeeDetailsByEmployeeId = async (req, res) => {
