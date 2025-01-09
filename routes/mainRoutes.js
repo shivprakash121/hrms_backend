@@ -1,7 +1,9 @@
 const express = require('express');
 const { 
     getAllAttendanceLogs,    
-    getAttendanceLogsByEmployeeId 
+    getAttendanceLogsByEmployeeId,
+    getAttendanceDaysByMonth,
+    removeDuplicateAttendance 
 } = require('../controllers/mainController');
 
 const router = express.Router();
@@ -13,6 +15,9 @@ const router = express.Router();
 // Route to fetch attendance logs
 router.get('/attendance-logs', getAllAttendanceLogs); // used
 router.get('/attendance-logs/:employeeId', getAttendanceLogsByEmployeeId); // used
+router.get('/attendance-days-by-month/:employeeId', getAttendanceDaysByMonth); // used
+router.get('/remove-duplicate-attendance-logs-by-month', removeDuplicateAttendance);
+
 
 // router.get('/holidays-list', getHolidayList);
 

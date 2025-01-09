@@ -1,5 +1,8 @@
 // const { connectToDB } = require("../config/dbConfig");
+const { duration } = require("moment");
 const AttendanceLogModel = require("../models/attendanceLogModel");
+const { format } = require("mysql");
+const cron = require('node-cron');
 
 // // Get all tables in the database
 // const getTables = async (req, res) => {
@@ -656,6 +659,201 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
 };
 
 
+const getAttendanceDaysByMonth = async (req, res) => {
+  try {
+    const employeeId = req.params.employeeId;
+    const yearMonth = req.query.yearMonth;
+    const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`); 
+    const endOfMonth = new Date(new Date(startOfMonth).setMonth(startOfMonth.getMonth() + 1)); 
+
+    const aggResult = await AttendanceLogModel.aggregate([
+      {
+        $match: {
+          EmployeeCode: employeeId,
+          AttendanceDate: {
+            $gte: startOfMonth,
+            $lt: endOfMonth, 
+          },
+        },
+      },
+      {
+        $project: {
+          EmployeeCode: 1,
+          Duration: 1,
+          AttendanceDate: 1,
+        },
+      },
+    ]);
+
+    const convertDuration = (durationInMinutes) => {
+      const hours = Math.floor(durationInMinutes / 60);
+      const minutes = durationInMinutes % 60;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    };
+    
+    const getAttendanceStatus = (durationInMinutes) => {
+      const hours = Math.floor(durationInMinutes / 60);
+      const minutes = durationInMinutes % 60;
+      const timeInMinutes = hours * 60 + minutes;
+    
+      if (timeInMinutes >= 520) { 
+        return "Full Day";
+      } else if (timeInMinutes >= 270) { 
+        return "Half Day";
+      } else {
+        return "Absent";
+      }
+    };
+    
+    const updatedData = aggResult.map(entry => {
+      const durationInHHMM = convertDuration(entry.Duration);
+      const attendanceStatus = getAttendanceStatus(entry.Duration); 
+    
+      return {
+        ...entry,
+        Duration: durationInHHMM,
+        AttendanceStatus: attendanceStatus
+      };
+    });
+    
+    
+    const uniqueData = Object.values(
+      updatedData.reduce((acc, entry) => {
+        if (!acc[entry.AttendanceDate]) {
+          acc[entry.AttendanceDate] = entry; 
+        }
+        return acc;
+      }, {})
+    );
+
+    if (aggResult.length > 0) {
+      return res.status(200).json({
+        statusCode: 200,
+        statusValue: "SUCCESS",
+        message: "Attendance records fetched successfully.",
+        data: uniqueData.reverse()
+      });
+    } else {
+      return res.status(404).json({
+        statusCode: 404,
+        statusValue: "FAIL",
+        message: "No records found for the given employee or filters.",
+      });
+    }
+
+  } catch (err) {
+    console.error("Error fetching attendance logs:", err.message);
+    res.status(500).json({
+      statusCode: 500,
+      statusValue: "ERROR",
+      message: "An error occurred while fetching attendance logs.",
+      error: err.message,
+    });
+  }
+}
+
+
+const removeDuplicateAttendance = async (req, res) => {
+  try {
+    if (!req.query) {
+      const currentDate = new Date();
+      const yearMonth = `${currentDate.getFullYear()}-${(currentDate.getMonth() + 1).toString().padStart(2, '0')}`;
+
+      const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`);
+      const endOfMonth = new Date(new Date(startOfMonth).setMonth(startOfMonth.getMonth() + 1));
+
+      // const yearMonth = req.query.yearMonth; // e.g., '2025-01'
+      // const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`);
+      // const endOfMonth = new Date(new Date(startOfMonth).setMonth(startOfMonth.getMonth() + 1));
+
+      const aggResult = await AttendanceLogModel.aggregate([
+        {
+          $match: {
+            AttendanceDate: {
+              $gte: startOfMonth,
+              $lt: endOfMonth,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: { EmployeeCode: "$EmployeeCode", AttendanceDate: "$AttendanceDate" },
+            count: { $sum: 1 },
+            ids: { $push: "$_id" },
+          },
+        },
+        {
+          $match: { count: { $gt: 1 } },
+        },
+      ]);
+      // console.log(11, aggResult)
+
+      
+      for (const record of aggResult) {
+        
+        const [firstId, ...duplicateIds] = record.ids;
+
+        await AttendanceLogModel.deleteMany({
+          _id: { $in: duplicateIds },
+        });
+      }
+      console.log("Duplicate attendance records removed successfully")
+    } else if(req.query.yearMonth) {
+      const yearMonth = req.query.yearMonth; // e.g., '2025-01'
+      const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`);
+      const endOfMonth = new Date(new Date(startOfMonth).setMonth(startOfMonth.getMonth() + 1));
+
+      const aggResult = await AttendanceLogModel.aggregate([
+        {
+          $match: {
+            AttendanceDate: {   
+              $gte: startOfMonth,
+              $lt: endOfMonth,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: { EmployeeCode: "$EmployeeCode", AttendanceDate: "$AttendanceDate" },
+            count: { $sum: 1 },
+            ids: { $push: "$_id" },
+          },
+        },
+        {
+          $match: { count: { $gt: 1 } },
+        },
+      ]);
+      // console.log(11, aggResult)
+
+      
+      for (const record of aggResult) {
+        
+        const [firstId, ...duplicateIds] = record.ids;
+
+        await AttendanceLogModel.deleteMany({
+          _id: { $in: duplicateIds },
+        });
+      }
+      res.status(200).json({
+        message:"Duplicate attendance records removed successfully"
+      })
+    }
+  } catch (err) {
+    console.log("Error while removing duplicate records:", err);
+    res.status(500).send({
+      message: "Failed to remove duplicate records",
+    });
+  }
+};
+
+const startRemoveAttendanceDuplicateRecords = () => {
+  cron.schedule("0 0 1 * *", async () => {
+    console.log("Running cron job: calculating duplicate attendance records attendance logs...");
+    await removeDuplicateAttendance();
+  });
+};
+
+
 // const updateEmployeeDetailsByEmployeeId = async (req, res) => {
 //   try {
 //     const { employeeId, newPassword } = req.body;
@@ -733,5 +931,8 @@ const removeDuplicateLogs = async (req, res) => {
 module.exports = {
   getAllAttendanceLogs,
   getAttendanceLogsByEmployeeId,
-  removeDuplicateLogs
+  removeDuplicateLogs,
+  getAttendanceDaysByMonth,
+  removeDuplicateAttendance,
+  startRemoveAttendanceDuplicateRecords
 };

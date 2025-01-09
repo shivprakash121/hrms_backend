@@ -10,6 +10,7 @@ dotenv.config();
 const cors = require("cors")
 const cron = require('node-cron');
 // const {startAttendanceCronJob, startUpdateAttendanceCronJob} = require("./utils/attendanceCronJob.js");
+const {startRemoveAttendanceDuplicateRecords} = require("./controllers/mainController.js");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -52,7 +53,7 @@ const moment = require("moment");
 // cron job for dump sql data into mongodb
 // startAttendanceCronJob()
 // startUpdateAttendanceCronJob();
-
+startRemoveAttendanceDuplicateRecords();
 
 // Cron job for automatic approved compOff request
 // Schedule the cron job to run every day at midnight
