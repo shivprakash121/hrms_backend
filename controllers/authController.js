@@ -10,6 +10,7 @@ const departmentModel = require("../models/departmentModel");
 // console.log(process.env.JWT_SECRET)
 const bcrypt = require('bcrypt');
 const leaveTakenHistoryModel = require("../models/leaveTakenHistoryModel");
+const {sendOtp} = require("../helper/sendOtp");
 
 const registerEmployee = async (req, res) => {
     try {
@@ -561,7 +562,7 @@ const resetForgetPassword = async (req, res) => {
             message: 'User not found ! You have entered wrong email id',
             statusCode: 404,
             statusValue: false
-        });
+        });  
       }
 
       var otp = Math.floor(1000 + Math.random() * 9000);
@@ -575,7 +576,7 @@ const resetForgetPassword = async (req, res) => {
         },
         { new: true } // Returns the updated document
       );
-      //   await sendOtp(checkUser.email, otp)
+    await sendOtp(checkUser.email, otp)
     res.status(200).json({
         statusCode: 200,                   
         statusValue: "SUCCESS",

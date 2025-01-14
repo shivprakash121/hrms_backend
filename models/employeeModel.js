@@ -59,6 +59,7 @@ const employeeSchema = new mongoose.Schema({
   workingDays:{ type: String, default: "5" },
   pancardNo: { type: String, default: "" },
   maxRegularization: { type: String, default: "3" },
+  maxShortLeave: { type: String, default: "1" },
   otp:{ type: String, default:"" },
   isOtpVerified:{ type: Boolean, default: false },
   leaveBalance: { type: leaveBalanceSchema, default: () => ({}) },

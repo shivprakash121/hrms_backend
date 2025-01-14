@@ -3,6 +3,7 @@ const { duration } = require("moment");
 const AttendanceLogModel = require("../models/attendanceLogModel");
 const { format } = require("mysql");
 const cron = require('node-cron');
+const leaveTakenHistoryModel = require("../models/leaveTakenHistoryModel");
 
 // // Get all tables in the database
 // const getTables = async (req, res) => {
@@ -681,6 +682,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
           EmployeeCode: 1,
           Duration: 1,
           AttendanceDate: 1,
+          Status:1
         },
       },
     ]);
@@ -725,16 +727,49 @@ const getAttendanceDaysByMonth = async (req, res) => {
         return acc;
       }, {})
     );
+    // get data from leav history
+    const leaveData = await leaveTakenHistoryModel.find({},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1});
+    
+    const finalResult = uniqueData.map(attendance => {
+      const matchingLeave = leaveData.find(leave => {
+        const leaveStart = new Date(leave.leaveStartDate);
+        const leaveEnd = new Date(leave.leaveEndDate);
+        return (
+          leave.employeeId === attendance.EmployeeCode &&
+          attendance.AttendanceDate >= leaveStart &&
+          attendance.AttendanceDate <= leaveEnd
+        );
+      });
 
+      if (matchingLeave) {
+        return {
+          ...attendance,
+          isLeaveTaken:true,
+          // leaveType: matchingLeave.leaveType
+        };
+      }
+      return {
+        ...attendance,
+        isLeaveTaken: false,
+      };
+    });
+    
+    const formattedResult = finalResult.map(item => {
+      const date = new Date(item.AttendanceDate);
+      const options = { day: 'numeric', month: 'long', year: 'numeric' };
+      const formattedDate = new Intl.DateTimeFormat('en-GB', options).format(date);
+      return { ...item, AttendanceDate: formattedDate };
+    });
+    
     if (aggResult.length > 0) {
       return res.status(200).json({
         statusCode: 200,
         statusValue: "SUCCESS",
         message: "Attendance records fetched successfully.",
-        data: uniqueData.reverse()
+        data: formattedResult.reverse()
       });
     } else {
-      return res.status(404).json({
+      return res.status(404).json({  
         statusCode: 404,
         statusValue: "FAIL",
         message: "No records found for the given employee or filters.",

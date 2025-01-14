@@ -43,6 +43,14 @@ const leaveTakenHistorySchema = new mongoose.Schema({
     type: String,
     default: ""
   },
+  isLeaveTaken:{
+    type: Boolean,
+    default: true
+  },
+  shift:{
+    type: String,
+    default: ""
+  },
   approvedDateTime: { type: String, default: "" },
   dateTime:{ type: String, default:"" },  
   createdAt: { type: Date, default: Date.now }, 

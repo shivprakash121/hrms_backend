@@ -11,17 +11,19 @@ const holidaysModel = require("../models/holidayModel");
 // console.log(process.env.JWT_SECRET)
 const moment = require("moment");
 const CompOff = require("../models/compOffHistoryModel");
+const AttendanceLogModel = require("../models/attendanceLogModel");
 
 
 const applyLeave = async (req, res) => {
     try {
         const schema = Joi.object({
-            leaveType: Joi.string().valid("medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "casualLeave", "compOffLeave", "regularization").required(),
+            leaveType: Joi.string().valid("medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "casualLeave", "compOffLeave").required(),
             leaveStartDate: Joi.string().required(),
             leaveEndDate: Joi.string().allow("").optional(),
             totalDays: Joi.number().required(),
             reason: Joi.string().required(),
             approvedBy: Joi.string().allow("").optional(),
+            shift: Joi.string().allow("").optional(),
         });
         let result = schema.validate(req.body);
         // console.log(req.body)
@@ -34,11 +36,10 @@ const applyLeave = async (req, res) => {
             });
         }
 
-        let { leaveStartDate, leaveEndDate, totalDays, reason, approvedBy, leaveType } = req.body;
+        let { leaveStartDate, leaveEndDate, totalDays, reason, approvedBy, leaveType, shift } = req.body;
         // Check if end date is not provided
         if (!leaveEndDate || leaveEndDate.trim() === "" || leaveEndDate === "undefined") {
             leaveEndDate = leaveStartDate;
-            totalDays = 1
         }
 
 
@@ -102,7 +103,7 @@ const applyLeave = async (req, res) => {
                 message: "Invalid token",
             });
         }
-        console.log(decoded)
+        // console.log(decoded)
         // get current date and time
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
@@ -166,7 +167,8 @@ const applyLeave = async (req, res) => {
             reason: reason,
             approvedBy: approvedBy || "NA",
             status: "Pending",
-            dateTime: dateTime
+            dateTime: dateTime,
+            shift:req.body.shift || ""
         })
 
         const saveDoc = await bodyDoc.save();
@@ -191,7 +193,7 @@ const applyLeave = async (req, res) => {
 const applyForRegularization = async (req, res) => {
     try {
         const schema = Joi.object({
-            leaveType: Joi.string().valid("regularized").required(),
+            leaveType: Joi.string().valid("regularized", "shortLeave").required(),
             leaveStartDate: Joi.string().required(),
             reason: Joi.string().required(),
             approvedBy: Joi.string().allow("").optional(),
@@ -205,10 +207,7 @@ const applyForRegularization = async (req, res) => {
                 message: result.error.details[0].message,
             });
         }
-
-        let { leaveStartDate, reason, approvedBy, leaveType } = req.body;
         
-
         // Extract the token from the Authorization header
         const token = req.headers.authorization?.split(" ")[1];
         if (!token) {
@@ -228,7 +227,40 @@ const applyForRegularization = async (req, res) => {
             });
         }
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
-        // check Maximum regularization in current month
+        // end user
+
+        let { leaveStartDate, reason, approvedBy, leaveType } = req.body;
+        if (!leaveStartDate || !moment(leaveStartDate, "YYYY-MM-DD", true).isValid()) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: "Invalid date format for leaveStartDate. Use 'YYYY-MM-DD'.",
+            });
+        }
+        
+        const today = moment().startOf('day'); // Current date
+        const maxDate = today.clone().subtract(1, 'day'); // Yesterday
+        const minDate = today.clone().subtract(7, 'days');  // 7 days before today (excluding today)
+        
+        const leaveDate = moment(leaveStartDate, "YYYY-MM-DD", true);
+        
+        if(leaveType === "regularized") {
+            if (leaveDate.isBefore(minDate) || leaveDate.isAfter(maxDate)) {
+                return res.status(400).json({
+                    statusValue: "FAIL",
+                    statusCode: 400,
+                    message: "leaveStartDate must be within the past 7 days (excluding today).",
+                });
+            }
+        } else if (leaveType === "shortLeave") {
+            if (!leaveDate.isSame(today, 'day')) {
+                return res.status(400).json({
+                    statusCode: 400,
+                    statusValue: "FAIL",
+                    message: "Short leave can only be applied for the current date.",
+                });
+            }
+        }
         // Get current month start and end dates
         const startOfMonth = moment().startOf("month").toDate();
         const endOfMonth = moment().endOf("month").toDate();
@@ -236,17 +268,27 @@ const applyForRegularization = async (req, res) => {
         // Fetch employee's leave data for the current month
         const checkMaxLimitReg = await leaveTakenHistoryModel.find({
             employeeId: req.params.employeeId,
-            leaveType: "regularized", // Filter only 'regularized' leave types
-            createdAt: { $gte: startOfMonth, $lte: endOfMonth }, // Filter current month's data
+            leaveType: leaveType, 
+            createdAt: { $gte: startOfMonth, $lte: endOfMonth }, 
         });
 
         // Check if the count exceeds the limit
-        if (checkMaxLimitReg.length >= 3) {
-            return res.status(400).json({
-                message: "You have already reached the maximum regularization limit for this month.",
-                statusCode: 400,
-                statusValue: "LIMIT_EXCEEDED",
-            });
+        if(leaveType === "regularized") {
+            if (checkMaxLimitReg.length >= 2) {
+                return res.status(400).json({
+                    message: "You have already reached the maximum regularization limit for this month.",
+                    statusCode: 400,
+                    statusValue: "LIMIT_EXCEEDED",
+                });
+            }
+        } else if (leaveType === "shortLeave") {
+            if (checkMaxLimitReg.length >= 1) {
+                return res.status(400).json({
+                    message: "You have already reached the maximum short leave limit for this month.",
+                    statusCode: 400,
+                    statusValue: "LIMIT_EXCEEDED",
+                });
+            }
         }
 
         // get current date and time
@@ -267,15 +309,28 @@ const applyForRegularization = async (req, res) => {
         };
 
         const dateTime = getIndiaCurrentDateTime()
-
+        // check attendance for employee
+        const checkAttendance = await AttendanceLogModel.findOne({$and:[
+            {AttendanceDate:new Date(req.body.leaveStartDate)},
+            {EmployeeCode:req.params.employeeId},
+        ]})
+        // console.log(checkAttendance.Status)
+        if (!checkAttendance) {
+            return res.status(400).json({
+                message: "We don't have your attendance log on this date.",
+                statusCode: 400,
+                statusValue: "false",
+            });
+        }
+        // console.log(12, checkAttendance)
         const bodyDoc = new leaveTakenHistoryModel({
             employeeId: req.params.employeeId,
             leaveType: leaveType,
             leaveStartDate: leaveStartDate,
             leaveEndDate: leaveStartDate,
-            totalDays: "0.25",
+            totalDays: "1",
             reason: reason,
-            approvedBy: getUser.managerId || "353",
+            approvedBy: getUser.managerId,  
             status: "Pending",
             dateTime: dateTime
         })
@@ -624,7 +679,7 @@ const actionForLeavApplication = async (req, res) => {
             // Update employee's leave balance
             const updateLeaveBalance = await employeeModel.findOneAndUpdate(
                 { employeeId: leaveData.employeeId },
-                { $set: { [`leaveBalance.${leaveType}`]: updatedBalance } }
+                { $set: { [`leaveBalance.${leaveType}`]: updatedBalance } }  
             );
 
             if (!updateLeaveBalance) {
@@ -759,15 +814,35 @@ const actionForRegularization = async (req, res) => {
 
         const leaveData = await leaveTakenHistoryModel.findOne({ _id: req.params.id });
         const employeeId = leaveData?.employeeId;
-
         if (status === "Approved") {
+            if (leaveData.leaveType === "regularized") {
+                const updatedEmployee = await employeeModel.findOneAndUpdate(
+                    { employeeId: employeeId },
+                    [
+                        {
+                            $set: {
+                                maxRegularization: {
+                                    $toString: { $subtract: [{ $toInt: "$maxRegularization" }, 1] },
+                                },
+                            },
+                        },
+                    ],
+                    { new: true }
+                );
+                return res.status(200).json({
+                    message: "Regularization updated successfully",
+                    statusCode: 200,
+                    statusValue: "Success",
+                    data: updatedEmployee,
+                });
+            }
             const updatedEmployee = await employeeModel.findOneAndUpdate(
                 { employeeId: employeeId },
                 [
                     {
                         $set: {
-                            maxRegularization: {
-                                $toString: { $subtract: [{ $toInt: "$maxRegularization" }, 1] },
+                            maxShortLeave: {
+                                $toString: { $subtract: [{ $toInt: "$maxShortLeave" }, 1] },
                             },
                         },
                     },
@@ -777,7 +852,7 @@ const actionForRegularization = async (req, res) => {
 
             if (updatedEmployee) {
                 return res.status(200).json({
-                    message: "Regularization updated successfully",
+                    message: "Short leave updated successfully",
                     statusCode: 200,
                     statusValue: "Success",
                     data: updatedEmployee,

@@ -106,24 +106,24 @@ cron.schedule("0 0 * * *", async () => {
     }
 });
 
-// Cron job for getting 1 casualLeave and 3 maxRegularization 
+// Cron job for getting 1 maxShortLeave and 2 maxRegularization 
 // Schedule a cron job to run at midnight on the first day of every month
 cron.schedule('0 0 1 * *', async () => {
-    console.log('Running cron job to reset casualLeave...');
+    console.log('Running cron job to reset maxRegularization and maxShortLeave...');
 
     try {
         // Update all employees' casualLeave to 1
         const result = await employeeModel.updateMany(
             {},
             { $set: { 
-                'leaveBalance.casualLeave': '1',
-                'maxRegularization': '3'
+                'maxShortLeave': '1',
+                'maxRegularization': '2'
             } }
         );
 
-        console.log(`Successfully updated casualLeave for ${result.nModified} employees.`);
+        console.log(`Successfully updated maxRegularization and maxShortLeave for ${result.nModified} employees.`);
     } catch (error) {
-        console.error('Error updating casualLeave:', error);
+        console.error('Error updating maxRegularization and maxShortLeave:', error);
     }
 });
 
@@ -198,6 +198,27 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
     }
 });
 
+// Cron job for auto incremented casualLeave quaterly by 2
+cron.schedule('30 0 1 1,4,7,10 *', async () => {
+    console.log('Running cron job to credit 2 casual leaves...');
+
+    try {
+        await employeeModel.updateMany(
+            { 'leaveBalance.casualLeave': { $exists: false } },
+            { $set: { 'leaveBalance.casualLeave': '0' } } // Initialize as string
+        );
+
+        // Increment earnedLeave and ensure it is stored as a string
+        const result = await employeeModel.updateMany(
+            {},
+            { $set: { 'leaveBalance.casualLeave': '2' } }    
+        );  
+
+        console.log(`Successfully credited 2 casual leaves for ${result.modifiedCount} employees.`);
+    } catch (error) {
+        console.error('Error crediting casual leaves:', error);
+    }
+});
 
 
 app.listen(PORT, () => {

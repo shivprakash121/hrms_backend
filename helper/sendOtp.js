@@ -12,7 +12,7 @@ const sendOtp = async function sendOtp(to, otp) {
 
     const sender = {
       email: 'shivprakash@agvahealthtech.com',
-      name: 'AgVa Health Care',
+      name: 'HRMS - AgVa Health Care',
     }
 
     const receivers = [
@@ -26,7 +26,7 @@ const sendOtp = async function sendOtp(to, otp) {
       .sendTransacEmail({
         sender,
         to: receivers,
-        subject: 'Welcome to Logcat ',
+        subject: 'Welcome to HRMS ',
         textContent: `
                 This is otp verification email.
                 `,
@@ -178,7 +178,7 @@ const sendOtp = async function sendOtp(to, otp) {
                                 We hope you're having a lovely day.</h5>
                               <h5
                                 style="font-family: sans-serif; font-size: 14px; font-weight: normal; margin: 0; margin-bottom: 15px;">
-                                Thank you for choosing AgVa Healthcare. Use the following OTP to complete your verification email procedures. OTP is valid for 5 minutes .
+                                Thank you for choosing AgVa HRMS Webapps. Use the following OTP to complete your verification email procedures. OTP is valid for 5 minutes .
                                 <br>
                               <h2 style="background: #00466a;margin: 0 auto;width: max-content;padding: 0 10px;color: #fff;border-radius: 4px;">
                                 ${otp}</h2>
