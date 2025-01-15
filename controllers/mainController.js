@@ -688,6 +688,71 @@ const updateEmployeeDetailsByEmployeeId = async (req, res) => {
   }
 }
 
+
+const updateAttendanceLogByEmployeeCodeAndDate = async (req, res) => {
+  try {
+    const { employeeId, attendanceDate, inTime, inDeviceId, outTime, punchRecords, duration } = req.body;
+
+    if (!employeeId || !attendanceDate) {
+      return res.status(400).json({
+        statusCode: 400,
+        statusValue: "FAIL",
+        message: "EmployeeCode and AttendanceDate are required.",
+      });
+    }
+
+    const pool = await connectToDB();
+
+    // Update query
+    const query = `
+      UPDATE AttendanceLogs
+      SET 
+        InTime = @inTime, 
+        InDeviceId = @inDeviceId,
+        OutTime = @outTime,
+        PunchRecords = @punchRecords,
+        Duration = @duration
+      WHERE 
+        EmployeeId = @employeeId 
+        AND AttendanceDate = @attendanceDate;
+    `;
+
+    // Execute the query
+    const result = await pool.request()
+      .input('inTime', inTime)
+      .input('inDeviceId', inDeviceId)
+      .input('outTime', outTime)  
+      .input('punchRecords', punchRecords)
+      .input('employeeId', employeeId)
+      .input('attendanceDate', attendanceDate)
+      .input('duration', duration)
+      .query(query);
+
+    if (result.rowsAffected[0] > 0) {
+      return res.status(200).json({
+        statusCode: 200,
+        statusValue: "SUCCESS",
+        message: "Attendance record updated successfully.",
+      });
+    } else {
+      return res.status(404).json({
+        statusCode: 404,
+        statusValue: "FAIL",
+        message: "Attendance record not found.",
+      });
+    }
+  } catch (err) {
+    console.error("Error updating AttendanceLogs:", err.message);
+    return res.status(500).json({
+      statusCode: 500,
+      statusValue: "ERROR",
+      message: "An error occurred while updating the attendance record.",
+      error: err.message,
+    });
+  }
+};
+
+
 const getHolidayList = async (req, res) => {
   try {
     const pool = await connectToDB();
@@ -709,5 +774,6 @@ module.exports = {
   getPunchTimeDetails,
   getAttendanceLogsUpdateDetails,
   updateEmployeeDetailsByEmployeeId,
-  getHolidayList
+  getHolidayList,
+  updateAttendanceLogByEmployeeCodeAndDate
 };

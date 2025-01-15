@@ -41,30 +41,30 @@ app.use('/api', mainRoutes);
 app.use('/api/employee', authRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api/common', commonRoutes)   
-app.use('/api/s3', indexRoutes);      
+app.use('/api/s3', indexRoutes);           
    
 // cron job
 const employeeModel = require("./models/employeeModel");
 const CompOff = require("./models/compOffHistoryModel.js");     
 const moment = require("moment");   
 
-// cron job for dump sql data into mongodb   
-// startAttendanceLogSyncCronJobOnce();
-startAttendanceLogSyncCronJob(); 
-startAttendanceLogSyncCronJobLast5days();    
+// cron job for dump sql data into mongodb     
+// startAttendanceLogSyncCronJobOnce();  
+startAttendanceLogSyncCronJob();                
+// startAttendanceLogSyncCronJobLast5days();        
 
 
 // Cron job for automatic approved compOff request
 // Schedule the cron job to run every day at midnight
-cron.schedule("0 0 * * *", async () => {
+cron.schedule("0 0 * * *", async () => {     
     try {
-        // Get today's date minus 3 days, formatted as YYYY-MM-DD
+        // Get today's date minus 3 days, formatted as YYYY-MM-DD   
         const threeDaysAgo = moment().subtract(3, "days").format("YYYY-MM-DD");
 
         // Find all comp-off requests with compOffDate older than or equal to 3 days ago and still pending
         const compOffRequests = await CompOff.find({
             compOffDate: { $lte: threeDaysAgo },
-            status: "Pending"
+            status: "Pending"   
         });
 
         for (const compOff of compOffRequests) {

@@ -140,21 +140,31 @@ const fetchAndSyncAttendanceLogsOnce = async () => {
 };
 
 const startAttendanceLogSyncCronJobOnce = () => {
-  cron.schedule("*/5 * * * *", async () => {
+  cron.schedule("*/50 * * * *", async () => {
     console.log("Running cron job: Syncing attendance logs for the last 6 months...");
     await fetchAndSyncAttendanceLogsOnce();
   });
 };
 
-
-const fetchAndSyncAttendanceLogsLast5days = async () => {
+//  
+const fetchAndSyncAttendanceLogsLast5days = async (req, res) => {
   try {
+    const { currentDate, previousDate } = req.body;
+    // Validate input dates
+    if (!currentDate || !previousDate) {
+      return res.status(400).json({
+        message: 'Missing required date range parameters. || date format is "YYYY-MM-DD"',
+        statusCode: 400,
+        statusValue: 'FAILURE',
+      });
+    }
+
+    // Log the date range
+    console.log("Date Range:", { currentDate, previousDate });
+    // Connect to the database
     const pool = await connectToDB();
-    const currentDate = moment().tz("Asia/Kolkata").format("YYYY-MM-DD");
-    const fiveDaysAgoDate = moment().tz("Asia/Kolkata").subtract(5, "days").format("YYYY-MM-DD");
 
-    console.log("Date Range:", { currentDate, fiveDaysAgoDate });
-
+    // SQL query to fetch data within the date range
     const query = `
       SELECT 
       Employees.EmployeeName, 
@@ -180,19 +190,19 @@ const fetchAndSyncAttendanceLogsLast5days = async () => {
       AttendanceLogs.*
       FROM AttendanceLogs
       LEFT JOIN Employees ON AttendanceLogs.EmployeeId = Employees.EmployeeId
-      WHERE CAST(AttendanceLogs.AttendanceDate AS DATE) BETWEEN '${fiveDaysAgoDate}' AND '${currentDate}'
+      WHERE CAST(AttendanceLogs.AttendanceDate AS DATE) BETWEEN '${previousDate}' AND '${currentDate}'
       ORDER BY AttendanceLogs.AttendanceDate DESC
     `;
 
+    // Execute the query
     const result = await pool.request().query(query);
-
     if (result.recordset.length > 0) {
-      console.log(`Fetched ${result.recordset.length} records for the last 5 days.`);
-
+      console.log(`Fetched ${result.recordset.length} records for the date range.`);
+      // Upsert fetched records into MongoDB
       const updatePromises = result.recordset.map(async (record) => {
         try {
-          await AttendanceLogModel.updateOne(
-            { AttendanceLogId: record.AttendanceLogId }, // Filter by unique ID
+          await AttendanceLogModel.findOneAndUpdate(
+            {$and:[{ EmployeeCode: record.EmployeeCode },{ AttendanceDate:record.AttendanceDate }]}, // Filter by unique ID
             { $set: record }, // Update fields
             { upsert: true } // Insert if not found
           );
@@ -200,30 +210,40 @@ const fetchAndSyncAttendanceLogsLast5days = async () => {
           console.error(`Error updating record ${record.AttendanceLogId}:`, err.message);
         }
       });
-
       await Promise.all(updatePromises);
-      console.log("Attendance logs for the last 5 days have been synced to MongoDB.");
+      console.log("Attendance logs synced to MongoDB.");
+      // Send success response
+      return res.status(200).json({
+        message: `Attendance logs synced successfully. ${result.recordset.length} records updated.`,
+        statusCode: 200,
+        statusValue: 'SUCCESS',
+      });
     } else {
-      console.log("No records found for the last 5 days.");
+      // No records found for the given date range
+      console.log("No records found for the date range.");
+      return res.status(404).json({
+        message: 'No records found for the provided date range.',
+        statusCode: 404,
+        statusValue: 'NOT_FOUND',
+      });
     }
   } catch (err) {
     console.error("Error syncing attendance logs:", err.message);
+    return res.status(500).json({
+      message: 'Error syncing attendance logs.',
+      statusCode: 500,
+      statusValue: 'FAILURE',
+      error: err.message,
+    });
   }
 };
 
-const startAttendanceLogSyncCronJobLast5days = () => {
-  cron.schedule("0 1 * * *", async () => {
-    console.log("Running cron job: Syncing attendance logs for the last 5 days...");
-    await fetchAndSyncAttendanceLogsLast5days();
-  });
-};
-
-// startAttendanceLogSyncCronJob();
 
 
 
 module.exports = { 
   startAttendanceLogSyncCronJob,
   startAttendanceLogSyncCronJobOnce,
-  startAttendanceLogSyncCronJobLast5days
+  fetchAndSyncAttendanceLogsLast5days
+  // startAttendanceLogSyncCronJobLast5days
 };
