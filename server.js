@@ -49,6 +49,7 @@ app.use('/api/s3', indexRoutes);
 const employeeModel = require("./models/employeeModel");
 const CompOff = require("./models/compOffHistoryModel.js");     
 const moment = require("moment");
+const AttendanceLogModel = require("./models/attendanceLogModel.js");
 
 // cron job for dump sql data into mongodb
 // startAttendanceCronJob()
@@ -85,10 +86,10 @@ cron.schedule("0 0 * * *", async () => {
                 { employeeId: compOff.employeeId },
                 {
                     $set: {
-                        "leaveBalance.compOffLeave": {
+                        "leaveBalance.earnedLeave": {
                             $toString: {
                                 $add: [
-                                    { $toInt: "$leaveBalance.compOffLeave" },
+                                    { $toInt: "$leaveBalance.earnedLeave" },
                                     parseInt(compOff.totalDays, 10)
                                 ]
                             }
@@ -220,6 +221,79 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
     }
 });
 
+const runJob = async (req, res) => {
+    try {
+        const yearMonth = "2025-01";
+        const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`);
+        const endOfMonth = new Date(new Date(startOfMonth).setMonth(startOfMonth.getMonth() + 1));
+
+        const aggResult = await AttendanceLogModel.aggregate([
+            {
+                $match: {
+                    EmployeeCode: "415",
+                    AttendanceDate: {
+                        $gte: startOfMonth,
+                        $lt: endOfMonth,
+                    },
+                },
+            },
+            {
+                $project: {
+                    EmployeeCode: 1,
+                    Duration: 1,
+                    AttendanceDate: 1,
+                    Status: 1
+                },
+            },
+        ]);
+
+        const convertDuration = (durationInMinutes) => {
+            const hours = Math.floor(durationInMinutes / 60);
+            const minutes = durationInMinutes % 60;
+            return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+        };
+
+        const getAttendanceStatus = (durationInMinutes) => {
+            const hours = Math.floor(durationInMinutes / 60);
+            const minutes = durationInMinutes % 60;
+            const timeInMinutes = hours * 60 + minutes;
+
+            if (timeInMinutes >= 520) {
+                return "Full Day";
+            } else if (timeInMinutes >= 270) {
+                return "Half Day";
+            } else {
+                return "Absent";
+            }
+        };
+
+        const updatedData = aggResult.map(entry => {
+            const durationInHHMM = convertDuration(entry.Duration);
+            const attendanceStatus = getAttendanceStatus(entry.Duration);
+
+            return {
+                ...entry,
+                Duration: durationInHHMM,
+                AttendanceStatus: attendanceStatus
+            };
+        });
+
+
+        const uniqueData = Object.values(
+            updatedData.reduce((acc, entry) => {
+                if (!acc[entry.AttendanceDate]) {
+                    acc[entry.AttendanceDate] = entry;
+                }
+                return acc;
+            }, {})
+        );
+        // console.log('check data', uniqueData)
+    } catch (error) {
+        console.log("catch error");
+    }
+}
+
+// runJob();
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

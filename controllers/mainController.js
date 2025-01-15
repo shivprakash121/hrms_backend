@@ -617,15 +617,44 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
       .limit(limit)
       .sort({ AttendanceDate: -1 });
       // Remove duplicates based on AttendanceDate and EmployeeCode
-      const uniqueRecords = dataResult.reduce((acc, record) => {
+    const uniqueRecords = dataResult.reduce((acc, record) => {
         const uniqueKey = `${record.AttendanceDate.toISOString()}_${record.EmployeeCode}`;
         if (!acc.seen.has(uniqueKey)) {
           acc.seen.add(uniqueKey);
           acc.filtered.push(record);
         }
         return acc;
-      }, { seen: new Set(), filtered: [] }).filtered;  
+    }, { seen: new Set(), filtered: [] }).filtered;  
 
+    // get leave history
+    const leaveData = await leaveTakenHistoryModel.find({employeeId:employeeId, status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1})
+    // console.log(11, leaveData)
+    const finalResult = uniqueRecords.map(attendance => {
+      const attendanceObj = attendance.toObject();
+      const matchingLeave = leaveData.find(leave => {
+        const leaveStart = new Date(leave.leaveStartDate);
+        const leaveEnd = new Date(leave.leaveEndDate);
+        return (
+          leave.employeeId === attendanceObj.EmployeeCode &&
+          attendanceObj.AttendanceDate >= leaveStart &&
+          attendanceObj.AttendanceDate <= leaveEnd
+        );
+      });
+
+      if (matchingLeave) {
+        return {
+          ...attendanceObj,
+          isLeaveTaken:true,
+          leaveType: matchingLeave.leaveType
+        };
+      }
+      return {
+        ...attendanceObj,
+        isLeaveTaken: false,
+        leaveType: ""
+      };
+    });
+    // console.log(11, finalResult)
     // Get the total count of records for pagination metadata
     const totalRecords = await AttendanceLogModel.countDocuments(filter);
     const totalPages = Math.ceil(totalRecords / limit);
@@ -635,7 +664,7 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
         statusCode: 200,
         statusValue: "SUCCESS",
         message: "Attendance records fetched successfully.",
-        data: uniqueRecords,
+        data: finalResult,
         totalRecords,
         totalPages,
         currentPage: page,
@@ -678,11 +707,27 @@ const getAttendanceDaysByMonth = async (req, res) => {
         },
       },
       {
+        $lookup: {
+          from:"employees",
+          localField: "EmployeeCode",
+          foreignField: "employeeId",
+          as : "employeeInfo"
+        }
+      },
+      {
+        $addFields: {
+          shiftTime: { $arrayElemAt: ["$employeeInfo.shiftTime", 0] },
+        }
+      },
+      {
         $project: {
-          EmployeeCode: 1,
-          Duration: 1,
-          AttendanceDate: 1,
-          Status:1
+          "EmployeeCode": 1,
+          "Duration": 1,
+          "AttendanceDate": 1,
+          "Status": 1,
+          "shiftTime": 1,
+          "InTime": 1,
+          "OutTime": 1
         },
       },
     ]);
@@ -718,7 +763,6 @@ const getAttendanceDaysByMonth = async (req, res) => {
       };
     });
     
-    
     const uniqueData = Object.values(
       updatedData.reduce((acc, entry) => {
         if (!acc[entry.AttendanceDate]) {
@@ -728,8 +772,8 @@ const getAttendanceDaysByMonth = async (req, res) => {
       }, {})
     );
     // get data from leav history
-    const leaveData = await leaveTakenHistoryModel.find({},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1});
-    
+    const leaveData = await leaveTakenHistoryModel.find({status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1});
+  
     const finalResult = uniqueData.map(attendance => {
       const matchingLeave = leaveData.find(leave => {
         const leaveStart = new Date(leave.leaveStartDate);
@@ -745,12 +789,13 @@ const getAttendanceDaysByMonth = async (req, res) => {
         return {
           ...attendance,
           isLeaveTaken:true,
-          // leaveType: matchingLeave.leaveType
+          leaveType: matchingLeave.leaveType
         };
       }
       return {
         ...attendance,
         isLeaveTaken: false,
+        leaveType: ""
       };
     });
     
