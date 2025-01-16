@@ -52,7 +52,7 @@ const applyLeave = async (req, res) => {
             const startDate = new Date(leaveStartDate);
             const endDate = new Date(leaveEndDate);
 
-            // check date condition
+            // check date condition  
             if (startDate > endDate) {
                 return {
                     isValid: false,
@@ -154,6 +154,7 @@ const applyLeave = async (req, res) => {
                 statusCode: 400,
                 statusValue: "FAIL",
                 message: "You have already applied leave on same date",
+                statusMessage: "You have already applied leave on same date",
             });
         }
         // console.log(decoded)

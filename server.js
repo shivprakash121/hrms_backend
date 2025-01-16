@@ -50,55 +50,108 @@ const employeeModel = require("./models/employeeModel");
 const CompOff = require("./models/compOffHistoryModel.js");     
 const moment = require("moment");
 const AttendanceLogModel = require("./models/attendanceLogModel.js");
+const leaveTakenHistoryModel = require("./models/leaveTakenHistoryModel.js");
 
 // cron job for dump sql data into mongodb
 // startAttendanceCronJob()
 // startUpdateAttendanceCronJob();
 startRemoveAttendanceDuplicateRecords();
 
-// Cron job for automatic approved compOff request
+// Cron job for automatic approved regularization request
 // Schedule the cron job to run every day at midnight
-cron.schedule("0 0 * * *", async () => {
-    try {
-        // Get today's date minus 3 days, formatted as YYYY-MM-DD
-        const threeDaysAgo = moment().subtract(3, "days").format("YYYY-MM-DD");
+// cron.schedule("0 0 * * *", async () => {
+//     try {
+//         // Get today's date minus 3 days, formatted as YYYY-MM-DD
+//         const threeDaysAgo = moment().subtract(3, "days").format("YYYY-MM-DD");
 
-        // Find all comp-off requests with compOffDate older than or equal to 3 days ago and still pending
-        const compOffRequests = await CompOff.find({
-            compOffDate: { $lte: threeDaysAgo },
-            status: "Pending"
+//         // Find all comp-off requests with compOffDate older than or equal to 3 days ago and still pending
+//         const compOffRequests = await CompOff.find({
+//             compOffDate: { $lte: threeDaysAgo },
+//             status: "Pending"
+//         });
+
+//         for (const compOff of compOffRequests) {
+//             // Approve the comp-off request
+//             const updatedCompOff = await CompOff.findByIdAndUpdate(
+//                 compOff._id,
+//                 {
+//                     status: "Approved",
+//                     approvedDate: moment().format("YYYY-MM-DD HH:mm:ss"),
+//                     comments: "Action taken automatically after 3 days"
+//                 },
+//                 { new: true }
+//             );
+
+//             // Update the employee's leave balance
+//             await Employee.updateOne(
+//                 { employeeId: compOff.employeeId },
+//                 {
+//                     $set: {
+//                         "leaveBalance.earnedLeave": {
+//                             $toString: {
+//                                 $add: [
+//                                     { $toInt: "$leaveBalance.earnedLeave" },
+//                                     parseInt(compOff.totalDays, 10)
+//                                 ]
+//                             }
+//                         }
+//                     }
+//                 }
+//             );
+
+//             console.log(`CompOff request approved for employee ID: ${compOff.employeeId}`);
+//         }
+
+//         console.log("Cron job completed successfully.");
+//     } catch (error) {
+//         console.error("Error during cron job execution:", error);
+//     }
+// });
+
+
+// run cron job daily at mid night 12:30 for auto regularization
+cron.schedule("30 0 * * *", async () => {
+    try {
+        const threeDaysAgo = moment().subtract(3, "days").format("YYYY-MM-DD");
+        console.log("running job")
+        // Find all regularization requests older than or equal to 3 days ago and still pending
+        const regularizationRequests = await leaveTakenHistoryModel.find({
+            leaveStartDate: { $lte: threeDaysAgo },
+            leaveType: "regularized",
+            status: "Pending",
         });
 
-        for (const compOff of compOffRequests) {
-            // Approve the comp-off request
-            const updatedCompOff = await CompOff.findByIdAndUpdate(
-                compOff._id,
+        for (const regReq of regularizationRequests) {
+            // Approve the regularization request
+            const updatedReq = await leaveTakenHistoryModel.findByIdAndUpdate(
+                regReq._id,
                 {
                     status: "Approved",
-                    approvedDate: moment().format("YYYY-MM-DD HH:mm:ss"),
-                    comments: "Action taken automatically after 3 days"
+                    approvedDateTime: moment().format("YYYY-MM-DD HH:mm:ss"),
+                    remarks: "Action taken automatically after 3 days",
                 },
                 { new: true }
             );
 
-            // Update the employee's leave balance
-            await Employee.updateOne(
-                { employeeId: compOff.employeeId },
-                {
-                    $set: {
-                        "leaveBalance.earnedLeave": {
-                            $toString: {
-                                $add: [
-                                    { $toInt: "$leaveBalance.earnedLeave" },
-                                    parseInt(compOff.totalDays, 10)
-                                ]
-                            }
-                        }
-                    }
-                }
-            );
+            // Update the employee's leave balance only if maxRegularization is less than or equal to 2
+            const employee = await employeeModel.findOne({ employeeId: regReq.employeeId });
 
-            console.log(`CompOff request approved for employee ID: ${compOff.employeeId}`);
+            if (employee && parseInt(employee.maxRegularization) <= 2) {
+                await employeeModel.updateOne(
+                    { employeeId: regReq.employeeId },
+                    {
+                        $set: {
+                            maxRegularization: (
+                                parseInt(employee.maxRegularization) - 1
+                            ).toString(),
+                        },
+                    }
+                );
+            }
+
+            console.log(
+                `Regularization request approved for employee ID: ${regReq.employeeId}`
+            );
         }
 
         console.log("Cron job completed successfully.");
@@ -106,6 +159,7 @@ cron.schedule("0 0 * * *", async () => {
         console.error("Error during cron job execution:", error);
     }
 });
+
 
 // Cron job for getting 1 maxShortLeave and 2 maxRegularization 
 // Schedule a cron job to run at midnight on the first day of every month
@@ -220,6 +274,7 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
         console.error('Error crediting casual leaves:', error);
     }
 });
+
 
 const runJob = async (req, res) => {
     try {

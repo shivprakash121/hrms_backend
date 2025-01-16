@@ -298,6 +298,36 @@ const getAllAttendanceLogs = async (req, res) => {
       return acc;
     }, { seen: new Set(), filtered: [] }).filtered;  
 
+    // get leave history
+    const leaveData = await leaveTakenHistoryModel.find({status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1})
+    // console.log(11, leaveData)
+    const finalResult = uniqueRecords.map(attendance => {
+      const attendanceObj = attendance.toObject();
+      const matchingLeave = leaveData.find(leave => {
+        const leaveStart = new Date(leave.leaveStartDate);
+        const leaveEnd = new Date(leave.leaveEndDate);
+        return (
+          leave.employeeId === attendanceObj.EmployeeCode &&
+          attendanceObj.AttendanceDate >= leaveStart &&
+          attendanceObj.AttendanceDate <= leaveEnd
+        );
+      });
+
+      if (matchingLeave) {
+        return {
+          ...attendanceObj,
+          isLeaveTaken:true,
+          leaveType: matchingLeave.leaveType
+        };
+      }
+      return {
+        ...attendanceObj,
+        isLeaveTaken: false,
+        leaveType: ""
+      };
+    });
+    
+    // console.log(11, finalResult)
     // Get the total count of records for pagination metadata
     const totalRecords = await AttendanceLogModel.countDocuments(filter);
     const totalPages = Math.ceil(totalRecords / limit);
@@ -307,7 +337,7 @@ const getAllAttendanceLogs = async (req, res) => {
         statusCode: 200,
         statusValue: "SUCCESS",
         message: "Attendance records fetched successfully.",
-        data: dataResult,
+        data: finalResult,
         totalRecords,
         totalPages,
         currentPage: page,
