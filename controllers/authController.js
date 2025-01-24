@@ -297,7 +297,7 @@ const updateEmployeeById = async (req, res) => {
 const getEmployeeListByManagerId = async (req, res) => {
     try {
         // Extract pagination parameters from the request query
-        const { page = 1, limit = 10 } = req.query;
+        const { page = 1, limit = 50 } = req.query;
 
         // Ensure `page` and `limit` are integers
         const pageNumber = parseInt(page, 10);
@@ -319,6 +319,39 @@ const getEmployeeListByManagerId = async (req, res) => {
                 statusCode: 400,
                 statusValue: "FAIL",
                 message: "Invalid token",
+            });
+        }
+        if (decoded.role === "Super-Admin") {
+            // Calculate the total number of employees
+            const totalCount = await employeeModel.countDocuments({});
+
+            if (totalCount === 0) {
+                return res.status(404).json({
+                    statusCode: 404,
+                    statusValue: "FAIL",
+                    message: "No employees found.",
+                });
+            }
+
+            // Calculate total pages
+            const totalPages = Math.ceil(totalCount / limitNumber);
+
+            // Retrieve paginated employee records
+            const employees = await employeeModel
+                .find({})
+                .skip((pageNumber - 1) * limitNumber)
+                .limit(limitNumber);
+
+            // Success response
+            return res.status(200).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Employee list retrieved successfully.",
+                data: employees,
+                totalRecords: totalCount,
+                totalPages,
+                currentPage: pageNumber,
+                limit: limitNumber,
             });
         }
         // Calculate the total number of employees
@@ -477,7 +510,8 @@ const getTodayOnleaveList = async (req, res) => {
             return res.status(400).json({
                 statusCode: 400,
                 statusValue: "FAIL",
-                message: "Employee data not found.",
+                message: "No one is on leave.",
+                data:[]
             });
         }
         const empList = await employeeModel.find({employeeId:{$in: employeeIds}},{employeeId:1,employeeName:1,gender:1,designation:1,employeePhoto:1})

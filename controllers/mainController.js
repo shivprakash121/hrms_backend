@@ -4,6 +4,7 @@ const AttendanceLogModel = require("../models/attendanceLogModel");
 const { format } = require("mysql");
 const cron = require('node-cron');
 const leaveTakenHistoryModel = require("../models/leaveTakenHistoryModel");
+const holidaysModel = require("../models/holidayModel");
 
 // // Get all tables in the database
 // const getTables = async (req, res) => {
@@ -601,7 +602,7 @@ const getAllAttendanceLogs = async (req, res) => {
 const getAttendanceLogsByEmployeeId = async (req, res) => {
   try {
     // Extract query parameters
-    const employeeId = req.params.employeeId;
+    const employeeId = req.params.employeeId.toString();
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : new Date(); // Default to current date if dateTo is not provided
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null; // No default for dateFrom
     const page = parseInt(req.query.page) || 1;
@@ -803,7 +804,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
     );
     // get data from leav history
     const leaveData = await leaveTakenHistoryModel.find({status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1});
-  
+    
     const finalResult = uniqueData.map(attendance => {
       const matchingLeave = leaveData.find(leave => {
         const leaveStart = new Date(leave.leaveStartDate);
@@ -829,13 +830,32 @@ const getAttendanceDaysByMonth = async (req, res) => {
       };
     });
     
+    const holidaysData = await holidaysModel.find({},{holidayName:1, holidayDate:1});
+    
+    // Convert holiday dates to Date objects for comparison
+    const holidaysMap = holidaysData.reduce((map, holiday) => {
+      map[new Date(holiday.holidayDate).toISOString().split('T')[0]] = holiday.holidayName;
+      return map;
+    }, {});
+
+    // Add isHoliday and holidayName to finalResult
+    finalResult.forEach(record => {
+      const attendanceDateKey = record.AttendanceDate.toISOString().split('T')[0];
+      if (holidaysMap[attendanceDateKey]) {
+        record.AttendanceStatus = holidaysMap[attendanceDateKey];
+        // record.holidayName = holidaysMap[attendanceDateKey];
+      } else {
+        record.AttendanceStatus = record.AttendanceStatus 
+      }
+    });
+
     const formattedResult = finalResult.map(item => {
       const date = new Date(item.AttendanceDate);
       const options = { day: 'numeric', month: 'long', year: 'numeric' };
       const formattedDate = new Intl.DateTimeFormat('en-GB', options).format(date);
       return { ...item, AttendanceDate: formattedDate };
     });
-    
+
     if (aggResult.length > 0) {
       return res.status(200).json({
         statusCode: 200,

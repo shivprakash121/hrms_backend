@@ -769,7 +769,7 @@ const actionForRegularization = async (req, res) => {
                 message: result.error.details[0].message,
             });
         }
-
+        // console.log(11, req.params)
         // Get current date and time
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
