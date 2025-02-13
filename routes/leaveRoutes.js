@@ -21,6 +21,7 @@ router.post('/apply-for-regularization/:employeeId', authMiddleware, leaveContro
 // req for compoff
 router.post('/generate-compoff/:employeeId', leaveController.requestCompOff);
 router.get('/get-all-pending-compoff', authMiddleware, leaveController.getAllPendingCompoff);
+router.get('/get-own-compoff-history', authMiddleware, leaveController.getOwnCompoffHistory);
 router.put('/action-for-compoff-request/:id', leaveController.actionCompOff);
 
 // accept or reject 

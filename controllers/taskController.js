@@ -27,9 +27,10 @@ const addProject = async (req, res) => {
             task_creator_email
         } = req.body;
         
+        var otp = Math.floor(1000 + Math.random() * 9000);
         // create new project instance for data save
         const newProject = new projectModel({
-            id,
+            id: id || otp,
             name,
             user_ids,
             assignes_emails,
@@ -206,6 +207,56 @@ const getProjects = async (req, res) => {
     }
 }
 
+const getProjects2 = async (req, res) => {
+    try {
+            const projects = await projectModel.find({},{_id:0, user_ids:0, __v:0});
+            if (!projects || projects.length === 0) {
+                return res.status(404).json({
+                    statusCode: 404,
+                    statusValue: "FAIL",
+                    message: "No projects found for the given email",
+                });
+            }
+            const employees = await employeeModel.find({}, { employeeName: 1, email: 1, _id: 0 });
+            
+            const enrichedProjects = projects.map((project) => {
+                const enrichedAssignesEmails = project.assignes_emails.map((email) => {
+                    const employee = employees.find((emp) => emp.email === email);
+
+                    return employee ?
+                    {name: employee.employeeName, email: employee.email}
+                    : { name: "Unknown", email }
+                });
+                return {
+                    ...project.toObject(),
+                    assignes_emails: enrichedAssignesEmails,
+                };
+            })
+
+            if (!projects || projects.length === 0) {
+                return res.status(404).json({
+                    statusCode: 404,
+                    statusValue: "FAIL",
+                    message: "No projects found for the given email",
+                });
+            }
+
+            return res.status(200).json({
+                message: "Projects fetched successfully",
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                data:enrichedProjects
+            });
+    } catch (error) {
+        return res.status(500).json({
+            message: 'Internal server error.',
+            statusCode: 500,
+            statusValue: 'Error',
+            error: error.message
+        });
+    }
+}
+
 
 const addTask = async (req, res) => {
     try {
@@ -227,16 +278,16 @@ const addTask = async (req, res) => {
         } = req.body;
 
         // Validate required fields
-        if (!id || !name || !project_id || !project_name || 
-            !user_ids || !assignees_emails || !priority || !start_date || !deadline_date || !task_description || !task_creator_email) {
+        // if (!name || !project_id || !project_name || 
+        //     !user_ids || !assignees_emails || !priority || !start_date || !deadline_date || !task_description || !task_creator_email) {
             
-                return res.status(400).json({
-                statusCode: 400,
-                statusValue: "FAIL",
-                message: "All required fields must be provided",
-            });
-        }
-
+        //         return res.status(400).json({
+        //         statusCode: 400,
+        //         statusValue: "FAIL",
+        //         message: "All required fields must be provided",
+        //     });
+        // }
+        var otp = Math.floor(1000 + Math.random() * 9000);
         // Ensure task ID is unique
         const existingTask = await taskModel.findOne({ id });
         if (existingTask) {
@@ -249,19 +300,19 @@ const addTask = async (req, res) => {
 
         // Create a new task
         const newTask = new taskModel({
-            id,
-            name,
-            project_id,
-            project_name,
-            user_ids,
-            assignees_emails,
-            priority: priority[0],
+            id: id || otp,
+            name:name|| "",
+            project_id: project_id|| "",
+            project_name: project_name || "",
+            user_ids: user_ids || [],
+            assignees_emails: assignees_emails || [],
+            priority: priority[0] || [],
             stage_name: stage_name || "Created",
-            start_date,
-            deadline_date,
-            task_description,
-            create_date,
-            task_creator_email,
+            start_date: start_date || "",
+            deadline_date: deadline_date || "",
+            task_description: task_description || "",
+            create_date: create_date || "",
+            task_creator_email: task_creator_email || "",
             comments: comments || "",
         });
         // save the data
@@ -510,6 +561,120 @@ const getTasks = async (req, res) => {
 }
 
 
+const getTasks2 = async (req, res) => {
+    try {
+            const tasks = await taskModel.find({ },{_id:0, user_ids:0, __v:0}).sort({create_date:-1});
+            const employees = await employeeModel.find({}, { employeeName: 1, email: 1, _id: 0 });
+            
+            const enrichedTask = tasks.map((task) => {
+                const enrichedAssignesEmails = task.assignees_emails.map((email) => {
+                    const employee = employees.find((emp) => emp.email === email);
+
+                    return employee ?
+                    {name: employee.employeeName, email: employee.email}
+                    : { name: "Unknown", email }
+                });
+                return {
+                    ...task.toObject(),
+                    assignees_emails: enrichedAssignesEmails,
+                };
+            })
+            const projectData = await projectModel.find({});
+            const enrichTaskDataWithProject = (enrichedTask, projectData) => {
+                return enrichedTask.map(task => {
+                    const matchingProject = projectData.find(project => project.id === task.project_id);
+
+                    if(matchingProject) {
+                        return {
+                            ...task,
+                            project_name: matchingProject.name,
+                            project_description: matchingProject.description
+                        }
+                    } else {
+                        return task;
+                    }
+                })
+            }
+
+            const finalResult = enrichTaskDataWithProject(enrichedTask, projectData);
+            // const predefinedStatuses = [
+            //     "Created",
+            //     "In Progress",
+            //     "Redo",
+            //     "Running Late",
+            //     "Review",
+            //     "Completed",
+            //     "Cancel",
+            //     "Hold"
+            // ];
+            
+            // const categorizedData = predefinedStatuses.map((status) => ({
+            //     status,
+            //     items: []
+            // }));
+
+            // // Add items to the appropriate status
+            // finalResult.forEach((item) => {
+            //     const {
+            //         id,
+            //         name,
+            //         project_id,
+            //         project_name,
+            //         assignees_emails,
+            //         priority,
+            //         stage_name,
+            //         start_date,
+            //         deadline_date,
+            //         task_description,
+            //         create_date,
+            //         task_creator_email,
+            //         comments,
+            //         project_description
+            //     } = item;
+
+            //     const statusIndex = categorizedData.findIndex((category) => category.status === stage_name);
+            //     if (statusIndex !== -1) {
+            //         categorizedData[statusIndex].items.push({
+            //             id,
+            //             name,
+            //             project_id,
+            //             project_name,
+            //             assignees_emails,
+            //             priority,
+            //             start_date,
+            //             deadline_date,
+            //             task_description,
+            //             create_date,
+            //             task_creator_email,
+            //             comments,
+            //             project_description
+            //         });
+            //     }
+            // });
+
+            if (!tasks || tasks.length === 0) {
+                return res.status(404).json({
+                    statusCode: 404,
+                    statusValue: "FAIL",
+                    message: "No task found for the given email",
+                });
+            }
+            
+            return res.status(200).json({
+                message: "Task fetched successfully",
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                data:finalResult
+            });
+    } catch (error) {
+        return res.status(500).json({
+            message: 'Internal server error.',
+            statusCode: 500,
+            statusValue: 'Error',
+            error: error.message
+        });
+    }
+}
 
 const getTasksByProjectId = async (req, res) => {
     try {
@@ -739,6 +904,8 @@ module.exports = {
     updateTaskById,
     getTasks,
     getTasksByProjectId,
-    getTasksById
+    getTasksById,
+    getProjects2,
+    getTasks2
 }
 

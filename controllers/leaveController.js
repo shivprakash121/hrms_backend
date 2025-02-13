@@ -774,7 +774,7 @@ const actionForRegularization = async (req, res) => {
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
             const date = new Date(indiaTime);
-
+   
             const pad = (n) => (n < 10 ? `0${n}` : n);
 
             const year = date.getFullYear();
@@ -1339,6 +1339,7 @@ const getAllPendingLeaves = async (req, res) => {
 
         // console.log(decoded)
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
+        console.log(getUser)
         // check Role
         let aggregateLogic;
         if (getUser.role == "Manager") {
@@ -1599,6 +1600,7 @@ const getAllPendingCompoff = async (req, res) => {
 
         // console.log(decoded)
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
+        console.log('check-user', decoded)
         // check Role
         let aggregateLogic;
         if (getUser.role == "Manager") {
@@ -1888,6 +1890,155 @@ const getAllPendingCompoff = async (req, res) => {
 };
 
 
+const getOwnCompoffHistory = async (req, res) => {
+    try {
+        // Extract the token from the Authorization header
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Token is required",
+            });
+        }
+
+        // Decode the token to get employee details
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Invalid token",
+            });
+        }
+
+        // Extract pagination parameters
+        const pageNumber = parseInt(req.query.page, 10) || 1; // Default page is 1
+        const limitNumber = parseInt(req.query.limit, 10) || 10; // Default limit is 10
+        const skip = (pageNumber - 1) * limitNumber;
+
+        // console.log(decoded)
+        const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
+        // console.log('check-user', decoded)
+        // check Role
+        let aggregateLogic;
+            aggregateLogic = [
+                {
+                    $match: {
+                        employeeId: getUser.employeeId,
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "employees",
+                        localField: "employeeId",
+                        foreignField: "employeeId",
+                        as: "employeeInfo",
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$employeeInfo",
+                        preserveNullAndEmptyArrays: false,
+                    },
+                },
+                {
+                    $addFields: {
+                        statusPriority: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ["$status", "Pending"] }, then: 1 },
+                                    { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                    { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+                                ],
+                                default: 4, // Fallback priority for unexpected statuses
+                            },
+                        },
+                    },
+                },
+                {
+                    $sort: { statusPriority: 1, createdAt: -1 },
+                },
+                {
+                    $replaceRoot: {
+                        newRoot: {
+                            $mergeObjects: [
+                                "$$ROOT",
+                                {
+                                    employeeInfo: {
+                                        employeeName: "$employeeInfo.employeeName",
+                                        employeeCode: "$employeeInfo.employeeCode",
+                                        gender: "$employeeInfo.gender",
+                                        departmentId: "$employeeInfo.departmentId",
+                                        designation: "$employeeInfo.designation",
+                                        doj: "$employeeInfo.doj",
+                                        employmentType: "$employeeInfo.employmentType",
+                                        employeeStatus: "$employeeInfo.employeeStatus",
+                                        contactNo: "$employeeInfo.contactNo",
+                                        email: "$employeeInfo.email",
+                                        managerId: "$employeeInfo.managerId",
+                                        leaveBalance: "$employeeInfo.leaveBalance",
+                                        role: "$employeeInfo.role",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+                {
+                    $project: {
+                        employeeInfo: 1,
+                        appliedDate: 1,
+                        compOffDate: 1,
+                        reason: 1, 
+                        status: 1,
+                        comments: 1,
+                        totalDays: 1,
+                    },
+                },
+                {
+                    $facet: {
+                        metadata: [{ $count: "totalRecords" }],
+                        data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                    },
+                },
+            ];
+
+        const aggResult = await CompOff.aggregate(aggregateLogic);
+        // console.log('check', aggResult[0]?.metadata)
+
+        const totalRecords = aggResult[0]?.metadata[0]?.totalRecords || 0;
+        const totalPages = Math.ceil(totalRecords / limitNumber);
+
+        if (totalRecords > 0) {
+            return res.status(200).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Data fetched successfully.",
+                data: aggResult[0].data,
+                totalRecords,
+                totalPages,
+                currentPage: pageNumber,
+                limit: limitNumber
+            });
+        }
+
+        return res.status(404).json({
+            statusCode: 404,
+            statusValue: "FAIL",
+            message: "No data found.",
+            data: []
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: "Internal server error.",
+            error: error.message,
+        });
+    }
+};
 
 module.exports = {
     applyLeave,
@@ -1899,6 +2050,7 @@ module.exports = {
     getAllPendingLeaves,
     requestCompOff,
     getAllPendingCompoff,
+    getOwnCompoffHistory,
     actionCompOff,
     deleteLeavApplication
 }

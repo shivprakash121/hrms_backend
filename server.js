@@ -2,15 +2,19 @@ const express = require("express")
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const bodyParser = require("body-parser");
-const connectToMongoDB = require("./config/mongoConfig"); 
+const connectToMongoDB = require("./config/mongoConfig");
 // const {connectToDB} = require("./config/dbConfig");
 const morgan = require("morgan");
 const dotenv = require("dotenv");
+// for swagger
+const swaggerJsDoc = require("swagger-jsdoc");
+const swaggerUi = require("swagger-ui-express");
+
 dotenv.config();
 const cors = require("cors")
 const cron = require('node-cron');
 // const {startAttendanceCronJob, startUpdateAttendanceCronJob} = require("./utils/attendanceCronJob.js");
-const {startRemoveAttendanceDuplicateRecords} = require("./controllers/mainController.js");
+const { startRemoveAttendanceDuplicateRecords } = require("./controllers/mainController.js");
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -18,9 +22,40 @@ const PORT = process.env.PORT || 3001;
 app.use(bodyParser.json());
 app.use(cors());
 app.use(express.json());
+
 connectToMongoDB();  // for mongo conn
 // connectToDB();  // for sql conn  
 
+
+// Swagger Configuration
+const swaggerOptions = {
+    definition: {
+        openapi: "3.0.0",
+        info: {
+            title: "HRMS API's",
+            version: "1.0.0",
+            description: "API documentation for managing projects, tasks, and employee data",
+        },
+        servers: [
+            {
+                url: `http://localhost:${PORT}`,
+                description: "Local Development Server",
+            },
+            {
+                url: `http://172.23.100.211:${PORT}`,
+                description: "Production Server",
+            },
+        ],
+    },
+    apis: ["./routes/*.js"], // Ensure all your route files have Swagger annotations
+};
+
+const swaggerDocs = swaggerJsDoc(swaggerOptions);
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+
+// end swagger 
+
+// Route
 const mainRoutes = require('./routes/mainRoutes');
 const authRoutes = require('./routes/authRoutes');
 const leaveRoutes = require('./routes/leaveRoutes');
@@ -49,7 +84,7 @@ app.use('/api/task', taskRoutes);
 
 // cron job
 const employeeModel = require("./models/employeeModel");
-const CompOff = require("./models/compOffHistoryModel.js");     
+const CompOff = require("./models/compOffHistoryModel.js");
 const moment = require("moment");
 const AttendanceLogModel = require("./models/attendanceLogModel.js");
 const leaveTakenHistoryModel = require("./models/leaveTakenHistoryModel.js");
@@ -162,6 +197,55 @@ cron.schedule("30 0 * * *", async () => {
     }
 });
 
+// run cron job daily at mid night 12:35 for auto approved shortLeave req
+cron.schedule("35 0 * * *", async () => {
+    try {
+        console.log("Running auto-approval cron job...");
+
+        // Get the date 3 days ago as an ISO string
+        const threeDaysAgo = moment().subtract(3, "days").startOf("day").toISOString();
+
+        // Approve all pending short leave requests older than 3 days
+        const updatedRequests = await leaveTakenHistoryModel.updateMany(
+            {
+                leaveStartDate: { $lte: threeDaysAgo },
+                leaveType: "shortLeave",
+                status: "Pending",
+            },
+            {
+                $set: {
+                    status: "Approved",
+                    approvedDateTime: moment().format("YYYY-MM-DD HH:mm:ss"),
+                    remarks: "Action taken automatically after 3 days",
+                },
+            }
+        );
+
+        console.log(`Total short leave requests approved: ${updatedRequests.modifiedCount}`);
+
+        // Reduce maxShortLeave for employees whose request was approved
+        if (updatedRequests.modifiedCount > 0) {
+            const employeesToUpdate = await leaveTakenHistoryModel.distinct("employeeId", {
+                leaveStartDate: { $lte: threeDaysAgo },
+                leaveType: "shortLeave",
+                status: "Approved",
+            });
+
+            await employeeModel.updateMany(
+                { employeeId: { $in: employeesToUpdate }, maxShortLeave: "1" },
+                { $set: { maxShortLeave: "0" } }
+            );
+
+            console.log(`Updated maxShortLeave for employees: ${employeesToUpdate.length}`);
+        }
+
+        console.log("Cron job completed successfully.");
+    } catch (error) {
+        console.error("Error during cron job execution:", error);
+    }
+});
+
+
 
 // Cron job for getting 1 maxShortLeave and 2 maxRegularization 
 // Schedule a cron job to run at midnight on the first day of every month
@@ -172,10 +256,12 @@ cron.schedule('0 0 1 * *', async () => {
         // Update all employees' casualLeave to 1
         const result = await employeeModel.updateMany(
             {},
-            { $set: { 
-                'maxShortLeave': '1',
-                'maxRegularization': '2'
-            } }
+            {
+                $set: {
+                    'maxShortLeave': '1',
+                    'maxRegularization': '2'
+                }
+            }
         );
 
         console.log(`Successfully updated maxRegularization and maxShortLeave for ${result.nModified} employees.`);
@@ -239,7 +325,7 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
                         'leaveBalance.earnedLeave': {
                             $toString: {
                                 $add: [
-                                    { $toInt: '$leaveBalance.earnedLeave' },  
+                                    { $toInt: '$leaveBalance.earnedLeave' },
                                     4
                                 ]
                             }
@@ -247,7 +333,7 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
                     }
                 }
             ]
-        );  
+        );
 
         console.log(`Successfully credited 4 earned leaves for ${result.modifiedCount} employees.`);
     } catch (error) {
@@ -268,8 +354,8 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
         // Increment earnedLeave and ensure it is stored as a string
         const result = await employeeModel.updateMany(
             {},
-            { $set: { 'leaveBalance.casualLeave': '2' } }    
-        );  
+            { $set: { 'leaveBalance.casualLeave': '2' } }
+        );
 
         console.log(`Successfully credited 2 casual leaves for ${result.modifiedCount} employees.`);
     } catch (error) {
@@ -350,44 +436,36 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
 //     }
 // }
 
-// runJob();
+// // check given string is palindrom or not
+// const str = "sms";
 
+// function isPalindrom(str) {
+//     const checkStr = str.toLowerCase().split("").reverse().join("");
+//     return str === checkStr;
+// }
 
+// console.log('isPalindrom', isPalindrom(str))
 
+// find factorial of given no
+// function findFactorial(n) {
+//     if (n<0) return "Factorial is not defined for negative numbers";
+//     if(n === 0 || n === 1) return 1;  // base case
+//     return n * findFactorial(n-1);
+// }
 
+// console.log(findFactorial(8))
 
+// using loop
+// function findFactorial(n) {
+//     if (n<0) return "Factorial is not defined for negative numbers";
+//     let result = 1;
+//     for (let i = 2; i <= n; i++) {
+//         result = result * i;
+//     }
+//     return result;
+// }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// console.log(findFactorial(2))
 
 
 
@@ -400,4 +478,5 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    console.log(`Swagger API Docs available at http://localhost:${PORT}/api-docs`);
 });
