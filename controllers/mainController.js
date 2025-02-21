@@ -851,13 +851,14 @@ const getAttendanceLogsTodays = async (req, res) => {
 const getAttendanceLogsByEmployeeId = async (req, res) => {
   try {
     // Extract query parameters
-    const employeeId = req.params.employeeId.toString();
+    let employeeId = req.params.employeeId.toString();
+    // check user exists or not
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : new Date(); // Default to current date if dateTo is not provided
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null; // No default for dateFrom
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
-
+   
     // Validate employeeId
     if (!employeeId) {
       return res.status(400).json({
@@ -876,6 +877,10 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
         message: "dateTo cannot be greater than the current date.",
       });
     }
+
+    // check user exists or not
+    // const getEmp = await employeeModel.find({employeeId:req.query.employeeId})
+    // console.log(11, getEmp)
 
     // Build the filter object for MongoDB query
     let filter = {

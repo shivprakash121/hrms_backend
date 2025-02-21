@@ -1,22 +1,35 @@
 const express = require('express');
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
+const mongoSanitize = require("express-mongo-sanitize");
+
 const authController = require("../controllers/authController");
 const authMiddleware = require('../middlewares/authMiddleware');
 
 
+const authLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minutes window
+    max: 5, // Allow only 5 requests per window per IP
+    message: {
+        statusCode: 429,
+        statusValue: "Too Many Requests",
+        message: "You have exceeded the max request limit. Please try again later."
+    }
+});
+
 
 // Employee routes
 router.post('/register', authController.registerEmployee);    
-router.post('/login', authController.employeeLogin);
+router.post('/login', authLimiter, authController.employeeLogin);
 router.post('/logout', authMiddleware, authController.logout);
 
-router.post('/reset-password', authController.resetForgetPassword);  // reset password step 1
+router.post('/reset-password', authLimiter, authController.resetForgetPassword);  // reset password step 1
 router.post("/verify-otp", authController.verifyOtp);  // reset password step 2
 router.put("/generate-newpassword", authController.generateNewPassword);  // reset password step final   
 
 
 router.put('/update/:employeeId', authController.updateEmployeeById);  
-router.get('/get-all', authController.getAllEmployeeList);
+router.get('/get-all', authLimiter, authController.getAllEmployeeList);
 router.get('/get-emp-list-by-manager', authMiddleware, authController.getEmployeeListByManagerId); 
 router.get('/get-employee-details/:employeeId', authController.getEmpDetailsById);
 router.delete('/delete-employee/:employeeId', authController.deleteEmpById);

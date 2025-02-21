@@ -403,6 +403,16 @@ const getAllEmployeeList = async (req, res) => {
     try {
         // Extract pagination parameters from the request query
         const { page = 1, limit = 10 } = req.query;
+        const secretKey = "KN8Ehf?zG,J*>:v;6Y!~F%";
+        const { key } = req.body;
+
+        if (!key || key !== secretKey ) {
+            return res.status(404).json({
+                statusCode: 404,
+                statusValue: "FAIL",
+                message: "Error! key is required! || Wrong key provided!",
+            });
+        }
 
         // Ensure `page` and `limit` are integers
         const pageNumber = parseInt(page, 10);
@@ -495,7 +505,7 @@ const getEmpDetailsById = async (req, res) => {
 
 const getTodayOnleaveList = async (req, res) => {
     try {
-        const leaveData = await leaveTakenHistoryModel.find({status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1});
+        const leaveData = await leaveTakenHistoryModel.find({status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1, shift:1 });
         const currentDate = new Date().toISOString().split('T')[0];
 
         const employeesOnLeave = leaveData
@@ -615,7 +625,6 @@ const resetForgetPassword = async (req, res) => {
         statusCode: 200,                   
         statusValue: "SUCCESS",
         message: "OTP has been sent successfully to your registered email.",
-        otp
       });
     } catch (err) {
       return res.status(500).json({

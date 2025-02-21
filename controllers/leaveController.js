@@ -24,6 +24,7 @@ const applyLeave = async (req, res) => {
             reason: Joi.string().required(),
             approvedBy: Joi.string().allow("").optional(),
             shift: Joi.string().allow("").optional(),
+            location: Joi.string().allow("").optional(),
         });
         let result = schema.validate(req.body);
         // console.log(req.body)
@@ -36,7 +37,7 @@ const applyLeave = async (req, res) => {
             });
         }
 
-        let { leaveStartDate, leaveEndDate, totalDays, reason, approvedBy, leaveType, shift } = req.body;
+        let { leaveStartDate, leaveEndDate, totalDays, reason, approvedBy, leaveType, shift, location } = req.body;
         // Check if end date is not provided
         if (!leaveEndDate || leaveEndDate.trim() === "" || leaveEndDate === "undefined") {
             leaveEndDate = leaveStartDate;
@@ -169,7 +170,8 @@ const applyLeave = async (req, res) => {
             approvedBy: approvedBy || "NA",
             status: "Pending",
             dateTime: dateTime,
-            shift:req.body.shift || ""
+            shift:shift || "",
+            location: req.body.location || ""
         })
 
         const saveDoc = await bodyDoc.save();
@@ -511,14 +513,14 @@ const actionCompOff = async (req, res) => {
                 message: "User not found.",
             });
         }
-
-        if (getUser.role !== "Manager" || !getUser.role !== "HR-Admin") {
-            return res.status(403).json({
-                statusCode: 403,
-                statusValue: "FAIL",
-                message: "You don't have access to this feature.",
-            });
-        }
+        // console.log(11, getUser.role)
+        // if (getUser.role !== "Manager" || !getUser.role !== "HR-Admin") {
+        //     return res.status(403).json({
+        //         statusCode: 403,
+        //         statusValue: "FAIL",
+        //         message: "You don't have access to this feature.",
+        //     });
+        // }
         // Get current date and time in IST
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
@@ -541,25 +543,37 @@ const actionCompOff = async (req, res) => {
         const empData = await employeeModel.findOne({employeeId:compOffData.employeeId})
         // Create a new Comp Off request
         const compOffRequest = await CompOff.findOneAndUpdate(
-            {_id: req.params.id},
+            { _id: req.params.id },
             { 
-                status:req.body.status,
-                approvedDate:dateTime,
+                status: req.body.status,
+                approvedDate: dateTime,
                 comments: "Action taken by manager",
-                approvedBy:empData?.managerId || "NA"
+                approvedBy: empData?.managerId || "NA"
             }
         );
+        
         if (req.body.status === "Approved") {
+            const compOffData = await CompOff.findById(req.params.id);
+            if (!compOffData) {
+                return res.status(404).json({
+                    statusCode: 404,
+                    statusValue: "FAIL",
+                    message: "CompOff data not found."
+                });
+            }
+        
+            const totalDays = parseInt(compOffData.totalDays, 10) || 0; // Convert string to integer safely
+        
             await employeeModel.updateOne(
                 { employeeId: compOffData.employeeId },
                 [
                     {
                         $set: {
-                            "leaveBalance.compOffLeave": {
+                            "leaveBalance.earnedLeave": {
                                 $toString: {
                                     $add: [
-                                        { $toInt: "$leaveBalance.compOffLeave" },
-                                        1,
+                                        { $toInt: "$leaveBalance.earnedLeave" },
+                                        totalDays, // Add totalDays to earnedLeave balance
                                     ],
                                 },
                             },
@@ -568,6 +582,7 @@ const actionCompOff = async (req, res) => {
                 ]
             );
         }
+        
         
         if (!compOffRequest) {
             return res.status(400).json({
@@ -1600,7 +1615,7 @@ const getAllPendingCompoff = async (req, res) => {
 
         // console.log(decoded)
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
-        console.log('check-user', decoded)
+        // console.log('check-user', decoded)
         // check Role
         let aggregateLogic;
         if (getUser.role == "Manager") {
@@ -1686,7 +1701,7 @@ const getAllPendingCompoff = async (req, res) => {
                 },
             ];
 
-        } else if (getUser.role == "HR-Admin") {
+        } else if (getUser.role == "HR-Admin" || getUser.role == "Super-Admin") {
             aggregateLogic = [
                 // {
                 //   $match: {

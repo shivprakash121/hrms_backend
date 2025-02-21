@@ -15,16 +15,17 @@ exports.uploadMedicalReport = async (req, res) => {
     // req.file contains a file object  
     res.json(req.file);
     // console.log(req.file.fieldname, req.params.deviceId)
-    if (req.file) {
-        await leaveTakenHistoryModel.findOneAndUpdate({
-            employeeId:req.params.employeeId,
-            leaveType:"medicalLeave"
-        },
-        {
-            location:req.file.location
-        }
-    )
-    }
+    // if (req.file) {
+    //     await leaveTakenHistoryModel.findOneAndUpdate({
+    //         employeeId:req.params.employeeId,
+    //         leaveType:"medicalLeave",
+    //         status: "Pending"
+    //     },
+    //     {
+    //         location:req.file.location
+    //     }
+    // )
+    // }
 }    
 
 
