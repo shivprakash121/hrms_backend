@@ -17,7 +17,7 @@ const AttendanceLogModel = require("../models/attendanceLogModel");
 const applyLeave = async (req, res) => {
     try {
         const schema = Joi.object({
-            leaveType: Joi.string().valid("medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "casualLeave", "compOffLeave").required(),
+            leaveType: Joi.string().valid("medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "casualLeave", "compOffLeave", "optionalLeave").required(),
             leaveStartDate: Joi.string().required(),
             leaveEndDate: Joi.string().allow("").optional(),
             totalDays: Joi.number().required(),
@@ -37,7 +37,7 @@ const applyLeave = async (req, res) => {
             });
         }
 
-        let { leaveStartDate, leaveEndDate, totalDays, reason, approvedBy, leaveType, shift, location } = req.body;
+        let { leaveStartDate, leaveEndDate, totalDays, reason, approvedBy, leaveType, shift, location, optionalLeave } = req.body;
         // Check if end date is not provided
         if (!leaveEndDate || leaveEndDate.trim() === "" || leaveEndDate === "undefined") {
             leaveEndDate = leaveStartDate;
@@ -722,7 +722,7 @@ const actionForLeavApplication = async (req, res) => {
             return res.status(200).json({
                 statusCode: 200,
                 statusValue: "SUCCESS",
-                message: "Data updated successfully.",
+                message: "Leave updated successfully.",
             });
         }
 
@@ -746,6 +746,34 @@ const deleteLeavApplication = async (req, res) => {
     try {
         // Update leave application status
         const updateDoc = await leaveTakenHistoryModel.findOneAndDelete({ _id: req.params.id });
+        if (updateDoc) {
+            return res.status(200).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Data deleted successfully.",
+            });
+        }
+
+        return res.status(400).json({
+            statusCode: 400,
+            statusValue: "FAIL",
+            message: "Wrong id || Data not deleted successfully.",
+        });
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+};
+
+
+const deleteCompOffById = async (req, res) => {
+    try {
+        // Update leave application status
+        const updateDoc = await CompOff.findOneAndDelete({ _id: req.params.id });
         if (updateDoc) {
             return res.status(200).json({
                 statusCode: 200,
@@ -868,7 +896,7 @@ const actionForRegularization = async (req, res) => {
 
             if (updatedEmployee) {
                 return res.status(200).json({
-                    message: "Short leave updated successfully",
+                    message: "Leave updated successfully",
                     statusCode: 200,
                     statusValue: "Success",
                     data: updatedEmployee,
@@ -1226,7 +1254,7 @@ const getAllLeaves = async (req, res) => {
                 },
             },
             {
-                $sort: { statusPriority: 1, createdAt: -1 },
+                $sort: { statusPriority: 1, updatedAt: -1 },
             },
             {
                 $replaceRoot: {
@@ -1274,7 +1302,9 @@ const getAllLeaves = async (req, res) => {
                     approvedDateTime: 1,
                     dateTime: 1,
                     location:1,
-                    remarks:1
+                    remarks:1,
+                    createdAt:1,
+                    updatedAt:1
                 },
             },
             {
@@ -1286,8 +1316,6 @@ const getAllLeaves = async (req, res) => {
         ];
         
         const aggResult = await leaveTakenHistoryModel.aggregate(aggregateLogic);
-        
-        
         
         // console.log('check', aggResult[0]?.metadata)
 
@@ -1349,12 +1377,12 @@ const getAllPendingLeaves = async (req, res) => {
 
         // Extract pagination parameters
         const pageNumber = parseInt(req.query.page, 10) || 1; // Default page is 1
-        const limitNumber = parseInt(req.query.limit, 10) || 10; // Default limit is 10
+        const limitNumber = parseInt(req.query.limit, 10) || 20; // Default limit is 10
         const skip = (pageNumber - 1) * limitNumber;
 
         // console.log(decoded)
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
-        console.log(getUser)
+        // console.log(getUser)
         // check Role
         let aggregateLogic;
         if (getUser.role == "Manager") {
@@ -1393,7 +1421,7 @@ const getAllPendingLeaves = async (req, res) => {
                     },
                 },
                 {
-                    $sort: { statusPriority: 1, createdAt: -1 },
+                    $sort: { statusPriority: 1, updatedAt: -1 },
                 },
                 {
                     $replaceRoot: {
@@ -1404,6 +1432,7 @@ const getAllPendingLeaves = async (req, res) => {
                                     employeeInfo: {
                                         employeeName: "$employeeInfo.employeeName",
                                         employeeCode: "$employeeInfo.employeeCode",
+                                        employeeId: "$employeeInfo.employeeId",
                                         gender: "$employeeInfo.gender",
                                         departmentId: "$employeeInfo.departmentId",
                                         designation: "$employeeInfo.designation",
@@ -1441,7 +1470,9 @@ const getAllPendingLeaves = async (req, res) => {
                         approvedDateTime: 1,
                         dateTime: 1,
                         location:1,
-                        remarks:1
+                        remarks:1,
+                        createdAt:1,
+                        updatedAt:1
                     },
                 },
                 {
@@ -1536,7 +1567,9 @@ const getAllPendingLeaves = async (req, res) => {
                         approvedDateTime: 1,
                         dateTime: 1,
                         location:1,
-                        remarks:1
+                        remarks:1,
+                        updatedAt:1,
+                        createdAt:1
                     },
                 },
                 {
@@ -1654,7 +1687,7 @@ const getAllPendingCompoff = async (req, res) => {
                     },
                 },
                 {
-                    $sort: { statusPriority: 1, createdAt: -1 },
+                    $sort: { statusPriority: 1, updatedAt: -1 },
                 },
                 {
                     $replaceRoot: {
@@ -1691,6 +1724,8 @@ const getAllPendingCompoff = async (req, res) => {
                         status: 1,
                         comments: 1,
                         totalDays: 1,
+                        createdAt:1,
+                        updatedAt:1
                     },
                 },
                 {
@@ -1737,7 +1772,7 @@ const getAllPendingCompoff = async (req, res) => {
                     },
                 },
                 {
-                    $sort: { statusPriority: 1, createdAt: -1 },
+                    $sort: { statusPriority: 1, updatedAt: -1 },
                 },
                 {
                     $replaceRoot: {
@@ -1774,6 +1809,8 @@ const getAllPendingCompoff = async (req, res) => {
                         status: 1,
                         comments: 1,
                         totalDays: 1,
+                        createdAt:1,
+                        updatedAt:1
                     },
                 },
                 {
@@ -1857,6 +1894,8 @@ const getAllPendingCompoff = async (req, res) => {
                         status: 1,
                         comments: 1,
                         totalDays: 1,
+                        createdAt:1,
+                        updatedAt:1
                     },
                 },
                 {
@@ -1983,6 +2022,7 @@ const getOwnCompoffHistory = async (req, res) => {
                                     employeeInfo: {
                                         employeeName: "$employeeInfo.employeeName",
                                         employeeCode: "$employeeInfo.employeeCode",
+                                        employeeId: "$employeeInfo.employeeId",
                                         gender: "$employeeInfo.gender",
                                         departmentId: "$employeeInfo.departmentId",
                                         designation: "$employeeInfo.designation",
@@ -2067,5 +2107,6 @@ module.exports = {
     getAllPendingCompoff,
     getOwnCompoffHistory,
     actionCompOff,
-    deleteLeavApplication
+    deleteLeavApplication,
+    deleteCompOffById
 }

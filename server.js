@@ -13,6 +13,8 @@ const swaggerUi = require("swagger-ui-express");
 dotenv.config();
 const cors = require("cors")
 const cron = require('node-cron');
+const fs = require("fs");
+const path = require("path");
 // const {startAttendanceCronJob, startUpdateAttendanceCronJob} = require("./utils/attendanceCronJob.js");
 const { startRemoveAttendanceDuplicateRecords } = require("./controllers/mainController.js");
 
@@ -56,11 +58,11 @@ app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 // end swagger 
 
 // Route
-const mainRoutes = require('./routes/mainRoutes');
-const authRoutes = require('./routes/authRoutes');
-const leaveRoutes = require('./routes/leaveRoutes');
-const commonRoutes = require("./routes/commonRoutes");
-const indexRoutes = require("./routes/index");
+const mainRoutes = require('./routes/mainRoutes.js');
+const authRoutes = require('./routes/authRoutes.js');
+const leaveRoutes = require('./routes/leaveRoutes.js');
+const commonRoutes = require("./routes/commonRoutes.js");
+const indexRoutes = require("./routes/index.js");
 const taskRoutes = require("./routes/taskRoutes.js");
 
 
@@ -78,7 +80,7 @@ app.use(logRequestDetails);
 app.use('/api', mainRoutes);
 app.use('/api/employee', authRoutes);
 app.use('/api/leave', leaveRoutes);
-app.use('/api/common', commonRoutes)
+app.use('/api/common', commonRoutes);
 app.use('/api/s3', indexRoutes);
 app.use('/api/task', taskRoutes);
 
@@ -88,6 +90,89 @@ const CompOff = require("./models/compOffHistoryModel.js");
 const moment = require("moment");
 const AttendanceLogModel = require("./models/attendanceLogModel.js");
 const leaveTakenHistoryModel = require("./models/leaveTakenHistoryModel.js");
+
+// Backup dir
+const BACKUP_DIR = path.join(__dirname, "db_backup");
+
+// Ensure backup directory exists
+if (!fs.existsSync(BACKUP_DIR)) {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+}
+
+// Function to back up a collection in JSON format
+const backupCollectionToJson = async (Model, fileName) => {
+    try {
+        const data = await Model.find().lean();
+        if (data.length === 0) {
+            console.log(`No data to back up for ${fileName}`);
+            return;
+        }
+
+        const backupFilePath = path.join(BACKUP_DIR, `${fileName}_${moment().format("YYYY-MM-DD")}.json`);
+        fs.writeFileSync(backupFilePath, JSON.stringify(data, null, 2));
+
+        console.log(`Backup successful: ${backupFilePath}`);
+    } catch (error) {
+        console.error(`Error backing up ${fileName}:`, error);
+    }
+}
+
+
+// Function to delete backups older than 7 days
+const deleteOldBackups = () => {
+    const files = fs.readdirSync(BACKUP_DIR);
+
+    files.forEach(file => {
+        // Extract date from filename (assuming format: "fileName_YYYY-MM-DD.json")
+        const match = file.match(/\d{4}-\d{2}-\d{2}/);
+        if (match) {
+            const fileDate = moment(match[0], "YYYY-MM-DD");
+            const sevenDaysAgo = moment().subtract(7, "days");
+
+            if (fileDate.isBefore(sevenDaysAgo)) {
+                const filePath = path.join(BACKUP_DIR, file);
+                fs.unlinkSync(filePath);
+                console.log(`Deleted old backup: ${filePath}`);
+            }
+        }
+    });
+};
+
+
+// Schedule the backup cron job (Runs daily at midnight)
+cron.schedule("50 17 * * *", async () => {
+    console.log("Starting daily backup...");
+
+    await backupCollectionToJson(employeeModel, "employeeModel_backup");
+    await backupCollectionToJson(CompOff, "compOffHistoryModel_backup");
+    await backupCollectionToJson(AttendanceLogModel, "attendanceLogModel_backup");
+    await backupCollectionToJson(leaveTakenHistoryModel, "leaveTakenHistoryModel_backup");
+
+    console.log("Daily JSON backup completed.");
+
+    // Run cleanup after backup
+    deleteOldBackups();
+});
+
+const backupAllCollections = async () => {
+    console.log("Starting daily backup...");
+
+    await backupCollectionToJson(employeeModel, "employeeModel_backup");
+    await backupCollectionToJson(CompOff, "compOffHistoryModel_backup");
+    await backupCollectionToJson(AttendanceLogModel, "attendanceLogModel_backup");
+    await backupCollectionToJson(leaveTakenHistoryModel, "leaveTakenHistoryModel_backup");
+
+    console.log("Daily JSON backup completed.");
+
+    // Run cleanup after backup
+    deleteOldBackups();
+};
+
+// Call this function whenever you want to backup
+// backupAllCollections();
+
+
+// backupAllCollections();
 
 // cron job for dump sql data into mongodb
 // startAttendanceCronJob()
@@ -362,6 +447,7 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
         console.error('Error crediting casual leaves:', error);
     }
 });
+
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

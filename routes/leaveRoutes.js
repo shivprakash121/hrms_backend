@@ -10,6 +10,8 @@ router.put('/action-for-leave-application/:id', authMiddleware, leaveController.
 
 router.delete('/delete-leave-application/:id', leaveController.deleteLeavApplication);
 
+router.delete('/delete-compOff/:id', leaveController.deleteCompOffById);
+
 router.get('/get-employee-leave/:employeeId', leaveController.getLeavesTakenByEmpId);
 router.get('/get-all-leaves', authMiddleware, leaveController.getAllLeaves);  // for users only
 

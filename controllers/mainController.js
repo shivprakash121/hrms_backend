@@ -1043,6 +1043,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
     
       return {
         ...entry,
+        // Status: attendanceStatus,
         Duration: durationInHHMM,
         AttendanceStatus: attendanceStatus
       };
