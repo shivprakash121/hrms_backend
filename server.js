@@ -171,6 +171,70 @@ const backupAllCollections = async () => {
 // Call this function whenever you want to backup
 // backupAllCollections();
 
+const filePatterns = [
+    "employeeModel_backup_",
+    "compOffHistoryModel_backup_",
+    "leaveTakenHistoryModel_backup_"
+];
+const backupDir = path.join(__dirname, "db_backup");
+
+// GET API to fetch JSON data by date
+app.get("/api/get-json", (req, res) => {
+    const { date } = req.query;
+
+    if (!date) {
+        return res.status(400).json({
+            message: "Date query parameter is required (yyyy-mm-dd)",
+            statusCode: 400,
+            statusValue: "error"
+        });
+    }
+
+    let results = [];
+    let errors = [];
+
+    // Read all matching files
+    filePatterns.forEach((pattern) => {
+        const jsonFilePath = path.join(backupDir, `${pattern}${date}.json`);
+
+        if (fs.existsSync(jsonFilePath)) {
+            try {
+                const data = fs.readFileSync(jsonFilePath, "utf8");
+                results.push({
+                    filename: path.basename(jsonFilePath),
+                    data: JSON.parse(data)
+                });
+            } catch (err) {
+                errors.push({
+                    filename: path.basename(jsonFilePath),
+                    error: err.message
+                });
+            }
+        } else {
+            errors.push({
+                filename: `${pattern}${date}.json`,
+                error: "File not found"
+            });
+        }
+    });
+
+    res.status(200).json({
+        message: "JSON data fetched successfully",
+        statusCode: 200,
+        statusValue: "success",
+        data: results,
+        errors: errors.length > 0 ? errors : undefined
+    });
+});
+
+
+
+
+
+
+
+
+
 
 // backupAllCollections();
 
@@ -447,7 +511,6 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
         console.error('Error crediting casual leaves:', error);
     }
 });
-
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
