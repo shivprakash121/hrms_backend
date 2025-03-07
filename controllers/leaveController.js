@@ -37,7 +37,7 @@ const applyLeave = async (req, res) => {
             });
         }
 
-        let { leaveStartDate, leaveEndDate, totalDays, reason, approvedBy, leaveType, shift, location, optionalLeave } = req.body;
+        let { leaveStartDate, leaveEndDate, totalDays, reason, approvedBy, leaveType, shift, location, } = req.body;
         // Check if end date is not provided
         if (!leaveEndDate || leaveEndDate.trim() === "" || leaveEndDate === "undefined") {
             leaveEndDate = leaveStartDate;
@@ -62,7 +62,7 @@ const applyLeave = async (req, res) => {
             }
 
             // Restrict past dates for specific leave types
-            const restrictedLeaveTypes = ["casualLeave", "earnedLeave"]
+            const restrictedLeaveTypes = []
             if (restrictedLeaveTypes.includes(leaveType)) {
                 if (startDate < today || endDate < today) {
                     return {
@@ -123,7 +123,48 @@ const applyLeave = async (req, res) => {
         };
 
         const dateTime = getIndiaCurrentDateTime()
-
+        
+        // check employee data
+        const availableBalance = await employeeModel.findOne(
+            { $or: [{ employeeCode: req.params.employeeId }, { employeeId: req.params.employeeId }] },
+            { employeeId: 1, leaveBalance: 1 }
+        );
+        
+        if (!availableBalance) {
+            return res.status(404).json({
+                message: "Employee not found",
+                statusCode: 404,
+                statusValue: "error"
+            });
+        }
+        
+        // Fetch pending leaves of the same type for the employee
+        const leaveHistory = await leaveTakenHistoryModel.find({
+            employeeId: req.params.employeeId,
+            status: "Pending",
+            leaveType: req.body.leaveType
+        });
+        
+        // Calculate total pending leave balance
+        let totalPendingLeaveBal = leaveHistory.reduce((sum, leave) => sum + Number(leave.totalDays), 0);
+        totalPendingLeaveBal += Number(req.body.totalDays);
+        
+        console.log('Total Pending Leave Balance:', totalPendingLeaveBal);
+        
+        // Get available leave balance for the requested leaveType
+        // const leaveType = req.body.leaveType;
+        const availableLeaveBal = Number(availableBalance.leaveBalance[leaveType] || 0);
+        
+        // Check if available balance is less than total pending leave balance
+        if (availableLeaveBal < totalPendingLeaveBal) {
+            return res.status(400).json({
+                message: `Outreached pending ${leaveType} balance.`,
+                statusCode: 400,
+                statusValue: "error"
+            });
+        }
+        
+        // Proceed with leave request processing...
         // check already exists
         const isAlreadyExists = await leaveTakenHistoryModel.find({
             $and: [

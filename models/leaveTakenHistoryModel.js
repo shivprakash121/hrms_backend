@@ -52,6 +52,9 @@ const leaveTakenHistorySchema = new mongoose.Schema({
     default: ""
   },
   approvedDateTime: { type: String, default: "" },
+  // revertLeave: {
+  //   date
+  // },
   dateTime:{ type: String, default:"" },  
   createdAt: { type: Date, default: Date.now }, 
   updatedAt: { type: Date, default: Date.now }, 

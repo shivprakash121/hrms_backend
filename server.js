@@ -155,7 +155,7 @@ cron.schedule("50 17 * * *", async () => {
 });
 
 const backupAllCollections = async () => {
-    console.log("Starting daily backup...");
+    console.log("Starting daily backup..."); 
 
     await backupCollectionToJson(employeeModel, "employeeModel_backup");
     await backupCollectionToJson(CompOff, "compOffHistoryModel_backup");
@@ -169,7 +169,7 @@ const backupAllCollections = async () => {
 };
 
 // Call this function whenever you want to backup
-// backupAllCollections();
+backupAllCollections();
 
 const filePatterns = [
     "employeeModel_backup_",
@@ -226,12 +226,6 @@ app.get("/api/get-json", (req, res) => {
         errors: errors.length > 0 ? errors : undefined
     });
 });
-
-
-
-
-
-
 
 
 

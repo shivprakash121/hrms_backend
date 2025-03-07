@@ -365,8 +365,140 @@ const getAllAttendanceLogs = async (req, res) => {
 };
 
 
+const approvedPendingLeaves = async (req, res) => {
+  try {
+    // Get the current year and month
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = String(currentDate.getMonth() + 1).padStart(2, "0"); // Ensure 2-digit format
+
+    // Construct date range for the current month
+    const monthStart = `${currentYear}-${currentMonth}-01`;
+    const monthEnd = `${currentYear}-${currentMonth}-31`; // Covers all possible days
+
+    // Fetch pending leave requests within the current month
+    const pendingLeaves = await leaveTakenHistoryModel.find(
+      {
+        status: "Pending",
+        leaveStartDate: { $gte: monthStart, $lte: monthEnd },
+        leaveEndDate: { $gte: monthStart, $lte: monthEnd },
+      },
+      { employeeId: 1, leaveType: 1, totalDays: 1, leaveStartDate: 1, leaveEndDate: 1 }
+    );
+
+    if (!pendingLeaves.length) {
+      return res.status(200).json({
+        statusCode: 200,
+        statusValue: "SUCCESS",
+        message: "No pending leaves found for the current month.",
+      });
+    }
+
+    let approvedLeaves = [];
+    let insufficientBalanceLeaves = [];
+    // Get the current time in IST
+    
+    const getIndiaCurrentDateTime = () => {
+      const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+      const date = new Date(indiaTime);
+
+      const pad = (n) => (n < 10 ? `0${n}` : n);
+
+      const year = date.getFullYear();
+      const month = pad(date.getMonth() + 1); // Months are 0-based
+      const day = pad(date.getDate());
+      const hours = pad(date.getHours());
+      const minutes = pad(date.getMinutes());
+      const seconds = pad(date.getSeconds());
+
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    };
+
+    const dateTime = getIndiaCurrentDateTime()
+
+
+    for (const leave of pendingLeaves) {
+      const { employeeId, leaveType, totalDays } = leave;
+
+      // Find the employee record
+      const employee = await employeeModel.findOne({ employeeId });
+
+      if (!employee) {
+        console.log(`Employee ${employeeId} not found.`);
+        continue;
+      }
+
+      // Get current leave balance for the leaveType
+      let availableLeaveBal = parseFloat(employee.leaveBalance[leaveType] || "0");
+      let deductedDays = parseFloat(totalDays);
+
+      // Ensure the leave can be deducted
+      if (availableLeaveBal >= deductedDays) {
+        availableLeaveBal -= deductedDays;
+
+        // Update the employee's leave balance
+        await employeeModel.updateOne(
+          { employeeId },
+          { $set: { [`leaveBalance.${leaveType}`]: availableLeaveBal.toString() } }
+        );
+
+        // Approve the leave request
+        await leaveTakenHistoryModel.updateOne(
+          { _id: leave._id },
+          { $set: { 
+            status: "Approved",
+            approvedDateTime: dateTime,
+            remarks: "Action taken automatically at month end.", 
+          } }
+        );
+
+        console.log(`Approved leave for Employee ${employeeId}, Deducted ${deductedDays} from ${leaveType}.`);
+        approvedLeaves.push({
+          employeeId,
+          leaveType,
+          totalDays,
+          leaveStartDate: leave.leaveStartDate,
+          leaveEndDate: leave.leaveEndDate,
+          status: "Approved",
+          approvedDateTime: dateTime,
+          remarks: "Action taken automatically at month end."
+        });
+      } else {
+        // console.log(`Insufficient ${leaveType} balance for Employee ${employeeId}. Required: ${deductedDays}, Available: ${availableLeaveBal}`);
+        insufficientBalanceLeaves.push({
+          employeeId,
+          leaveType,
+          totalDays,
+          leaveStartDate: leave.leaveStartDate,
+          leaveEndDate: leave.leaveEndDate,
+          status: "Rejected",
+          approvedDateTime: dateTime,
+        });
+      }
+    }
+
+    return res.status(200).json({
+      statusCode: 200,
+      statusValue: "SUCCESS",
+      message: "Pending leaves processed for the current month.",
+      approvedLeaves,
+      insufficientBalanceLeaves,
+    });
+  } catch (err) {
+    console.error("Error processing pending leaves:", err);
+    res.status(500).json({
+      statusCode: 500,
+      statusValue: "ERROR",
+      message: "An error occurred while processing pending leaves.",
+      error: err.message,
+    });
+  }
+};
+
+
 const generateUninformedLeave = async (req, res) => {
   try {
+
     // Extract query parameters
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : null;
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null;
@@ -381,11 +513,12 @@ const generateUninformedLeave = async (req, res) => {
         $lte: dateTo
       };
     }
+    // Fetch attendance records
+    const dataResult = await AttendanceLogModel.find(filter, {
+      AttendanceDate: 1, EmployeeCode: 1, Duration: 1, Status: 1, EmployeeId: 1
+    });
 
-    // MongoDB query to fetch attendance records with pagination and filters
-    const dataResult = await AttendanceLogModel.find(filter,{AttendanceDate:1,EmployeeCode:1,Duration:1,Status:1})
-
-    // Remove duplicates based on AttendanceDate and EmployeeCode
+    // Remove duplicate attendance records
     const uniqueRecords = dataResult.reduce((acc, record) => {
       const uniqueKey = `${record.AttendanceDate.toISOString()}_${record.EmployeeCode}`;
       if (!acc.seen.has(uniqueKey)) {
@@ -395,141 +528,205 @@ const generateUninformedLeave = async (req, res) => {
       return acc;
     }, { seen: new Set(), filtered: [] }).filtered;
 
-    
-    const employeesData = await employeeModel.find({}, { employeeId: 1, managerId: 1, workingDays:1 });
-
-      // Create a map of employeeId → managerId for quick lookup
-      const employeeManagerMap = new Map();
-      employeesData.forEach(emp => {
-        employeeManagerMap.set(emp.employeeId.toString(), {
-          managerId: emp.managerId,
-          workingDays: emp.workingDays
-        });
+    if (uniqueRecords.length === 0) {
+      return res.status(200).json({
+        statusCode: 200,
+        statusValue: "SUCCESS",
+        message: "No attendance records found in the given date range.",
+        data: []
       });
+    }
 
-      // Fetch leave history where status is "Approved"
-      const leaveData = await leaveTakenHistoryModel.find(
-        { status: "Approved" },
-        { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 }
-      );
+    // Fetch all employees to create employee-manager map
+    const employeesData = await employeeModel.find({}, { employeeId: 1, managerId: 1, workingDays: 1 });
 
-      // Step 2: Filter records where leave does NOT match
-      const notMatchingLeaves = uniqueRecords
+    // Create employee-manager map
+    const employeeManagerMap = new Map();
+    employeesData.forEach(emp => {
+      employeeManagerMap.set(emp.employeeId.toString(), {
+        managerId: emp.managerId,
+        workingDays: emp.workingDays
+      });
+    });
+
+    // Fetch leave history (Approved)
+    const leaveData = await leaveTakenHistoryModel.find(
+      {$or:[{status:"Pending"},{status:"Approved"}]},
+      { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 }
+    );
+
+    // Filter records where leave does NOT match
+    const notMatchingLeaves = uniqueRecords
       .filter(attendance => {
-        const attendanceObj = attendance.toObject();
         return !leaveData.some(leave => {
-          const leaveStart = new Date(leave.leaveStartDate);
-          const leaveEnd = new Date(leave.leaveEndDate);
           return (
-            leave.employeeId.toString() === attendanceObj.EmployeeCode &&
-            attendanceObj.AttendanceDate >= leaveStart &&
-            attendanceObj.AttendanceDate <= leaveEnd
+            leave.employeeId.toString() === attendance.EmployeeCode &&
+            attendance.AttendanceDate >= leave.leaveStartDate &&
+            attendance.AttendanceDate <= leave.leaveEndDate
           );
         });
       })
       .map(attendance => {
-        const attendanceObj = attendance.toObject();
-        const employeeData = employeeManagerMap.get(attendanceObj.EmployeeCode.toString()) || {};
-
+        const employeeData = employeeManagerMap.get(attendance.EmployeeCode.toString()) || {};
         return {
-          ...attendanceObj,
+          ...attendance.toObject(),
           managerId: employeeData.managerId || null,
           workingDays: employeeData.workingDays || null
         };
       });
 
-      const filteredLeaves = notMatchingLeaves.filter(attendance => 
-        attendance.Duration < 520 && attendance.managerId !== null
-      );
-      
-      const holidayList = await holidaysModel.find({},{holidayDate:1})
-      const holidayDates = new Set(holidayList.map(holiday => holiday.holidayDate));
+    // Filter based on working hours and manager availability
+    const filteredLeaves = notMatchingLeaves.filter(attendance =>
+      attendance.Duration < 520 && attendance.managerId !== null
+    );
 
-      const filteredData = filteredLeaves.filter(record => {
-        const attendanceDate = new Date(record.AttendanceDate);
-        const dayOfWeek = attendanceDate.getUTCDay(); // Sunday = 0, ..., Saturday = 6
-        const formattedDate = attendanceDate.toISOString().split("T")[0]; // Convert to YYYY-MM-DD
-    
-        // Remove records if attendance date is a weekend based on workingDays
-        if (record.workingDays === "5" && (dayOfWeek === 0 || dayOfWeek === 6)) {
-            return false; // Remove records if Saturday or Sunday
-        }
-        if (record.workingDays === "6" && dayOfWeek === 0) {
-            return false; // Remove records if Sunday
-        }
-    
-        // Remove records if attendance date is a holiday
-        if (holidayDates.has(formattedDate)) {
-            return false; // Remove records if it's a holiday
-        }
-    
-        return true; // Keep the record
-      });
+    // Fetch holiday list
+    const holidayList = await holidaysModel.find({}, { holidayDate: 1 });
+    const holidayDates = new Set(holidayList.map(holiday => holiday.holidayDate));
 
-      const getIndiaCurrentDateTime = () => {
-        const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
-        const date = new Date(indiaTime);
+    // Remove weekend and holiday attendance records
+    const filteredData = filteredLeaves.filter(record => {
+      const attendanceDate = new Date(record.AttendanceDate);
+      const dayOfWeek = attendanceDate.getUTCDay();
+      const formattedDate = attendanceDate.toISOString().split("T")[0];
 
-        const pad = (n) => (n < 10 ? `0${n}` : n);
+      if (record.workingDays === "5" && (dayOfWeek === 0 || dayOfWeek === 6)) {
+        return false;
+      }
+      if (record.workingDays === "6" && dayOfWeek === 0) {
+        return false;
+      }
+      if (holidayDates.has(formattedDate)) {
+        return false;
+      }
 
-        const year = date.getFullYear();
-        const month = pad(date.getMonth() + 1); // Months are 0-based
-        const day = pad(date.getDate());
-        const hours = pad(date.getHours());
-        const minutes = pad(date.getMinutes());
-        const seconds = pad(date.getSeconds());
+      return true;
+    });
 
-        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    const getIndiaCurrentDateTime = () => {
+      const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+      const date = new Date(indiaTime);
+
+      const pad = (n) => (n < 10 ? `0${n}` : n);
+
+      const year = date.getFullYear();
+      const month = pad(date.getMonth() + 1); // Months are 0-based
+      const day = pad(date.getDate());
+      const hours = pad(date.getHours());
+      const minutes = pad(date.getMinutes());
+      const seconds = pad(date.getSeconds());
+
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     };
 
     const dateTime = getIndiaCurrentDateTime()
 
-      
-      // console.log(11, holidayList)
-      const leaveRecords = filteredData.map(attendance => {
-        const attendanceDate = new Date(attendance.AttendanceDate).toISOString().split("T")[0];
-      
-        return {
-          employeeId:attendance.EmployeeCode,
-          leaveType: "uninformedLeave",
-          leaveStartDate: attendanceDate,
-          leaveEndDate: attendanceDate,
-          totalDays: attendance.Duration < 270 ? "1" : (attendance.Duration >= 270 && attendance.Duration < 520 ? "0.5" : "0"),
-          reason: "This is system generated leave",
-          approvedBy: attendance.managerId || "System",
-          status: "Approved",
-          dateTime: dateTime,
-          approvedDateTime: dateTime,
-        };
-      });
-      
-      // Insert into MongoDB
+    // Create uninformed leave records
+    const leaveRecords = filteredData.map(attendance => {
+      const attendanceDate = attendance.AttendanceDate.toISOString().split("T")[0];
+
+      return {
+        employeeId: attendance.EmployeeCode,
+        leaveType: "uninformedLeave",
+        leaveStartDate: attendanceDate,
+        leaveEndDate: attendanceDate,
+        totalDays: attendance.Duration < 270 ? "1" : attendance.Duration >= 270 && attendance.Duration < 520 ? "0.5" : "0",
+        reason: "This is system-generated leave",
+        approvedBy: attendance.managerId || "System",
+        status: "Approved",
+        dateTime: dateTime,
+        approvedDateTime: dateTime
+      };
+    });
+
+    // Insert into MongoDB
+    if (leaveRecords.length > 0) {
       await leaveTakenHistoryModel.insertMany(leaveRecords);
-      
-    if (uniqueRecords.length > 0) {
-      return res.status(200).json({
-        statusCode: 200,
-        statusValue: "SUCCESS",
-        message: "Attendance records fetched successfully.",
-        data: leaveRecords
-      });
-    } else {
-      return res.status(400).json({
-        statusCode: 400,
-        statusValue: "FAIL",
-        message: "No records found for the given filters."
-      });
     }
+    
+    const updatedLeaves = await leaveTakenHistoryModel.find(
+      {},
+      { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 }
+    );
+    
+    const leaveMap = new Map();
+    const uninformedLeaveMap = new Map();
+    const leavesToDelete = [];
+    
+    // Step 1: Store other leave types in a Map
+    updatedLeaves.forEach(leave => {
+      const key = `${leave.employeeId}`;
+    
+      if (leave.leaveType !== "uninformedLeave") {
+        if (!leaveMap.has(key)) leaveMap.set(key, []);
+        leaveMap.get(key).push({
+          startDate: new Date(leave.leaveStartDate),
+          endDate: new Date(leave.leaveEndDate),
+        });
+      } else {
+        // Collect uninformedLeave records separately
+        if (!uninformedLeaveMap.has(key)) uninformedLeaveMap.set(key, []);
+        uninformedLeaveMap.get(key).push({
+          _id: leave._id,
+          startDate: new Date(leave.leaveStartDate),
+          endDate: new Date(leave.leaveEndDate),
+        });
+      }
+    });
+    
+    // Step 2: Identify uninformedLeave records to delete
+    uninformedLeaveMap.forEach((uninformedLeaves, employeeId) => {
+      const existingLeaves = leaveMap.get(employeeId) || [];
+    
+      // Sort uninformedLeave records by date to handle duplicates
+      uninformedLeaves.sort((a, b) => a.startDate - b.startDate);
+    
+      const keptUninformedLeaves = [];
+    
+      uninformedLeaves.forEach(leave => {
+        const startDate = leave.startDate;
+        const endDate = leave.endDate;
+    
+        // Check if this uninformedLeave overlaps with an existing leave
+        const hasOverlap = existingLeaves.some(el => startDate >= el.startDate && endDate <= el.endDate);
+    
+        if (hasOverlap || keptUninformedLeaves.some(existing => existing.startDate.getTime() === startDate.getTime())) {
+          // If it overlaps with another leave or is a duplicate uninformedLeave, mark for deletion
+          leavesToDelete.push(leave._id);
+        } else {
+          // Otherwise, keep it as a valid uninformedLeave record
+          keptUninformedLeaves.push(leave);
+        }
+      });
+    });
+    
+    // Step 3: Delete the identified uninformedLeave records
+    if (leavesToDelete.length > 0) {
+      await leaveTakenHistoryModel.deleteMany({ _id: { $in: leavesToDelete } });
+      console.log(`Deleted ${leavesToDelete.length} uninformedLeave records.`);
+    } else {
+      console.log("No uninformedLeave records to delete.");
+    }
+    
+
+    return res.status(200).json({
+      statusCode: 200,
+      statusValue: "SUCCESS",
+      message: "Attendance records processed successfully.",
+      // data: leaveRecords,
+      // data2: updatedLeaves
+    });
   } catch (err) {
-    console.error("Error fetching attendance logs:", err.message);
+    console.error("Error fetching attendance logs:", err);
     res.status(500).json({
       statusCode: 500,
       statusValue: "ERROR",
-      message: "An error occurred while fetching attendance logs.",
+      message: "An error occurred while processing attendance logs.",
       error: err.message
     });
   }
 };
+
 
 
 const getAttendanceLogsTodays = async (req, res) => {
@@ -1199,7 +1396,7 @@ const removeDuplicateAttendance = async (req, res) => {
         },
         {
           $group: {
-            _id: { EmployeeCode: "$EmployeeCode", AttendanceDate: "$AttendanceDate" },
+            _id: { EmployeeId: "$EmployeeId", AttendanceDate: "$AttendanceDate" },
             count: { $sum: 1 },
             ids: { $push: "$_id" },
           },
@@ -1321,5 +1518,6 @@ module.exports = {
   removeDuplicateAttendance,
   startRemoveAttendanceDuplicateRecords,
   getAttendanceLogsTodays,
-  generateUninformedLeave
+  generateUninformedLeave,
+  approvedPendingLeaves
 };

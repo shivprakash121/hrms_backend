@@ -7,7 +7,8 @@ const {
     getAttendanceDaysByMonth,
     removeDuplicateAttendance,
     getAttendanceLogsTodays,
-    generateUninformedLeave 
+    generateUninformedLeave, 
+    approvedPendingLeaves
 } = require('../controllers/mainController');
 
 const router = express.Router();
@@ -39,6 +40,7 @@ router.get('/remove-duplicate-attendance-logs-by-month', removeDuplicateAttendan
 
 // router.get('/holidays-list', getHolidayList);
 router.get('/generate-uninformed-leave', generateUninformedLeave);
+router.get('/approve-pending-leaves-by-system', approvedPendingLeaves);
 
 
 // router.get('/punchTime',getPunchTimeDetails);  // temp-used
