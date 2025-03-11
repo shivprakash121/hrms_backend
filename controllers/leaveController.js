@@ -783,6 +783,223 @@ const actionForLeavApplication = async (req, res) => {
 };
 
 
+const revertLeaveReq = async (req, res) => {
+    try {
+        const { revertedDays, id } = req.body;
+        console.log(req.body)
+        const schema = Joi.object({
+            id: Joi.string().required(),
+            revertedDays: Joi.string().required(),
+        });
+        let result = schema.validate(req.body);
+        if (result.error) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: result.error.details[0].message,
+            });
+        }
+        // console.log(req.body)
+        // Check leave data
+        const leaveData = await leaveTakenHistoryModel.findOne({ _id: id }, {_id:1, employeeId:1, totalDays:1, leaveType:1});
+        if (!leaveData) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Wrong id",
+            });
+        }
+        // Convert revertedDays and totalDays to float
+        const revertedDaysFloat = parseFloat(revertedDays);
+        const totalDaysFloat = parseFloat(leaveData.totalDays);
+
+        // Validate if values are proper numbers
+        if (isNaN(revertedDaysFloat) || isNaN(totalDaysFloat)) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Invalid leave days data.",
+            });
+        }
+                
+        // Validate if values are proper numbers
+        if (isNaN(revertedDaysFloat) || isNaN(totalDaysFloat)) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Invalid leave days data.",
+            });
+        }
+        
+        // Check if reverted days exceed total leave days
+        if (revertedDaysFloat > totalDaysFloat) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "You cannot apply for a revert leave req exceeding the total leave days.",
+            });
+        }
+
+        const getUser = await employeeModel.findOne({ employeeId: leaveData.employeeId }, { leaveBalance: 1 });
+        if (!getUser) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Employee not found.",
+            });
+        }
+
+        // Get current date and time in IST
+        const getIndiaCurrentDateTime = () => {
+            const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+            const date = new Date(indiaTime);
+
+            const pad = (n) => (n < 10 ? `0${n}` : n);
+
+            const year = date.getFullYear();
+            const month = pad(date.getMonth() + 1); // Months are 0-based
+            const day = pad(date.getDate());
+            const hours = pad(date.getHours());
+            const minutes = pad(date.getMinutes());
+            const seconds = pad(date.getSeconds());
+
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        };
+        const dateTime = getIndiaCurrentDateTime();
+        
+        const updateDoc = await leaveTakenHistoryModel.findOneAndUpdate(
+            { _id: id },
+            {
+                "revertLeave.requestedDateTime": dateTime,
+                "revertLeave.revertedDays": revertedDays || "",
+                "revertLeave.status": "Pending",
+            },
+            { upsert:true }
+        );
+
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Data updated successfully.",
+        });
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+};
+
+
+const actionForRevertLeaveReq = async (req, res) => {
+    try {
+        const schema = Joi.object({
+            status: Joi.string().valid("Approved", "Rejected").required(),
+        });
+        let result = schema.validate(req.body);
+        if (result.error) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: result.error.details[0].message,
+            });
+        }
+        const { status } = req.body;
+        const id = req.params.id;
+
+        const leaveData = await leaveTakenHistoryModel.findOne({ _id: id }, {_id:1, employeeId:1, totalDays:1, leaveType:1, revertLeave:1});
+        if (!leaveData) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Wrong id",
+            });
+        }
+        
+        const getUser = await employeeModel.findOne({ employeeId: leaveData.employeeId }, { leaveBalance: 1 });
+        if (!getUser) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Employee not found.",
+            });
+        }
+
+        // Get current date and time in IST
+        const getIndiaCurrentDateTime = () => {
+            const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+            const date = new Date(indiaTime);
+
+            const pad = (n) => (n < 10 ? `0${n}` : n);
+
+            const year = date.getFullYear();
+            const month = pad(date.getMonth() + 1); // Months are 0-based
+            const day = pad(date.getDate());
+            const hours = pad(date.getHours());
+            const minutes = pad(date.getMinutes());
+            const seconds = pad(date.getSeconds());
+
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        };
+        const dateTime = getIndiaCurrentDateTime();
+        
+        // Extract revertedDays
+        const revertedDaysFloat = parseFloat(leaveData.revertLeave?.revertedDays || "0");
+        if (isNaN(revertedDaysFloat) || revertedDaysFloat <= 0) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Invalid reverted days data.",
+            });
+        }
+
+        // Update revertLeave status
+        const updateDoc = await leaveTakenHistoryModel.findOneAndUpdate(
+            { _id: id },
+            {
+                "revertLeave.approvedDateTime": dateTime,
+                "revertLeave.status": status,
+            },
+            { new: true}
+        );
+        if (status === "Approved") {
+            const leaveType = leaveData.leaveType;
+            const currentLeaveBalance = parseFloat(getUser.leaveBalance?.[leaveType] || "0");
+            const newLeaveBalance = (currentLeaveBalance + revertedDaysFloat).toString();
+
+            const updateLeaveBalance = await employeeModel.findOneAndUpdate(
+                { employeeId: leaveData.employeeId },
+                { $set: { [`leaveBalance.${leaveType}`]: newLeaveBalance } }, // Store as string
+                { new: true}
+            );
+
+            if (!updateLeaveBalance) {
+                return res.status(400).json({
+                    statusCode: 400,
+                    statusValue: "FAIL",
+                    message: "Failed to update leave balance.",
+                });
+            }
+        }
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Data updated successfully.",
+        });
+        
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+};
+
+
 const deleteLeavApplication = async (req, res) => {
     try {
         // Update leave application status
@@ -1091,7 +1308,7 @@ const getLeavesTakenByEmpId = async (req, res) => {
 
         // Decode the token to get employee details
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        console.log('emp', decoded);
+        // console.log('emp', decoded);
         if (!decoded) {
             return res.status(400).json({
                 statusCode: 400,
@@ -1146,6 +1363,7 @@ const getLeavesTakenByEmpId = async (req, res) => {
                 $replaceRoot: {
                     newRoot: {
                         $mergeObjects: [
+                            { _id: "$_id" }, // Ensure the original _id is preserved
                             "$$ROOT",
                             {
                                 employeeInfo: {
@@ -1174,7 +1392,7 @@ const getLeavesTakenByEmpId = async (req, res) => {
                         ],
                     },
                 },
-            },
+            },            
             {
                 $project: {
                     employeeInfo: 1,
@@ -1188,7 +1406,8 @@ const getLeavesTakenByEmpId = async (req, res) => {
                     approvedDateTime: 1,
                     dateTime: 1,
                     location:1,
-                    remarks:1
+                    remarks:1,
+                    revertLeave:1
                 },
             },
             {
@@ -1453,8 +1672,8 @@ const getAllPendingLeaves = async (req, res) => {
                             $switch: {
                                 branches: [
                                     { case: { $eq: ["$status", "Pending"] }, then: 1 },
-                                    { case: { $eq: ["$status", "Approved"] }, then: 2 },
-                                    { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+                                    // { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                    // { case: { $eq: ["$status", "Rejected"] }, then: 3 },
                                 ],
                                 default: 4, // Fallback priority for unexpected statuses
                             },
@@ -1468,6 +1687,7 @@ const getAllPendingLeaves = async (req, res) => {
                     $replaceRoot: {
                         newRoot: {
                             $mergeObjects: [
+                                { _id: "$_id" },  // Ensure original _id is retained
                                 "$$ROOT",
                                 {
                                     employeeInfo: {
@@ -1513,7 +1733,8 @@ const getAllPendingLeaves = async (req, res) => {
                         location:1,
                         remarks:1,
                         createdAt:1,
-                        updatedAt:1
+                        updatedAt:1,
+                        revertLeave:1
                     },
                 },
                 {
@@ -1566,11 +1787,13 @@ const getAllPendingLeaves = async (req, res) => {
                     $replaceRoot: {
                         newRoot: {
                             $mergeObjects: [
+                                { _id: "$_id" },  // Ensure original _id is retained
                                 "$$ROOT",
                                 {
                                     employeeInfo: {
                                         employeeName: "$employeeInfo.employeeName",
                                         employeeCode: "$employeeInfo.employeeCode",
+                                        employeeId: "$employeeInfo.employeeId",
                                         gender: "$employeeInfo.gender",
                                         departmentId: "$employeeInfo.departmentId",
                                         designation: "$employeeInfo.designation",
@@ -1610,7 +1833,8 @@ const getAllPendingLeaves = async (req, res) => {
                         location:1,
                         remarks:1,
                         updatedAt:1,
-                        createdAt:1
+                        createdAt:1,
+                        revertLeave:1
                     },
                 },
                 {
@@ -2149,5 +2373,7 @@ module.exports = {
     getOwnCompoffHistory,
     actionCompOff,
     deleteLeavApplication,
-    deleteCompOffById
+    deleteCompOffById,
+    revertLeaveReq,
+    actionForRevertLeaveReq
 }

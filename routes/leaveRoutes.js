@@ -7,6 +7,8 @@ const leaveController = require("../controllers/leaveController");
 // Leave routes
 router.post('/apply-leave/:employeeId', leaveController.applyLeave);
 router.put('/action-for-leave-application/:id', authMiddleware, leaveController.actionForLeavApplication);
+router.post('/revert-leave-req', leaveController.revertLeaveReq);
+router.put('/action-for-revert-leave-req/:id', leaveController.actionForRevertLeaveReq);
 
 router.delete('/delete-leave-application/:id', leaveController.deleteLeavApplication);
 

@@ -169,7 +169,7 @@ const backupAllCollections = async () => {
 };
 
 // Call this function whenever you want to backup
-backupAllCollections();
+// backupAllCollections();
 
 const filePatterns = [
     "employeeModel_backup_",
