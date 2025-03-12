@@ -6,6 +6,7 @@ const connectToMongoDB = require("./config/mongoConfig");
 // const {connectToDB} = require("./config/dbConfig");
 const morgan = require("morgan");
 const dotenv = require("dotenv");
+const mongoose = require("mongoose");
 // for swagger
 const swaggerJsDoc = require("swagger-jsdoc");
 const swaggerUi = require("swagger-ui-express");
@@ -392,11 +393,10 @@ cron.schedule("35 0 * * *", async () => {
 
 // Cron job for getting 1 maxShortLeave and 2 maxRegularization 
 // Schedule a cron job to run at midnight on the first day of every month
-cron.schedule('0 0 1 * *', async () => {
+cron.schedule('40 0 1 * *', async () => {
     console.log('Running cron job to reset maxRegularization and maxShortLeave...');
 
     try {
-        // Update all employees' casualLeave to 1
         const result = await employeeModel.updateMany(
             {},
             {
@@ -407,7 +407,7 @@ cron.schedule('0 0 1 * *', async () => {
             }
         );
 
-        console.log(`Successfully updated maxRegularization and maxShortLeave for ${result.nModified} employees.`);
+        console.log(`Successfully updated maxRegularization and maxShortLeave for ${result.modifiedCount} employees.`);
     } catch (error) {
         console.error('Error updating maxRegularization and maxShortLeave:', error);
     }
@@ -505,6 +505,46 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
         console.error('Error crediting casual leaves:', error);
     }
 });
+
+
+// cron.schedule("*/2 * * * *", async () => {
+//     try {
+//         console.log("🔄 Running cron job to convert string _id to ObjectId...");
+
+//         // Step 1: Find all documents where `_id` is stored as a string
+//         const docs = await leaveTakenHistoryModel.find({ _id: { $type: "string" } });
+
+//         if (docs.length === 0) {
+//             console.log("✅ No documents found with string _id.");
+//             return;
+//         }
+
+//         console.log(`🔍 Found ${docs.length} documents with string _id.`);
+
+//         // Step 2: Convert documents and prepare for re-insertion
+//         const convertedDocs = docs.map(doc => {
+//             return {
+//                 ...doc.toObject(), // Convert Mongoose doc to plain object
+//                 _id: new mongoose.Types.ObjectId(doc._id), // Convert `_id` to ObjectId
+//                 createdAt: new Date(doc.createdAt), // Keep original createdAt
+//                 updatedAt: new Date(doc.updatedAt), // Keep original updatedAt
+//             };
+//         });
+
+//         // Step 3: Delete old documents with string `_id`
+//         const deleteResult = await leaveTakenHistoryModel.deleteMany({ _id: { $in: docs.map(doc => doc._id) } });
+//         console.log(`🗑️ Deleted ${deleteResult.deletedCount} documents with string _id.`);
+
+//         // Step 4: Re-insert the documents with the converted `_id`
+//         const insertResult = await leaveTakenHistoryModel.insertMany(convertedDocs);
+//         console.log(`✅ Successfully inserted ${insertResult.length} documents with ObjectId _id.`);
+
+//         console.log("🚀 Cron job completed successfully.");
+//     } catch (error) {
+//         console.error("❌ Error during cron job execution:", error);
+//     }
+// });
+
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

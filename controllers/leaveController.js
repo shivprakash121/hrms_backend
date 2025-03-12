@@ -14,6 +14,7 @@ const CompOff = require("../models/compOffHistoryModel");
 const AttendanceLogModel = require("../models/attendanceLogModel");
 
 
+
 const applyLeave = async (req, res) => {
     try {
         const schema = Joi.object({
@@ -917,6 +918,13 @@ const actionForRevertLeaveReq = async (req, res) => {
                 message: "Wrong id",
             });
         }
+        if (leaveData?.revertLeave?.status === "Approved") {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Revert leave already Approved.",
+            });
+        }
         
         const getUser = await employeeModel.findOne({ employeeId: leaveData.employeeId }, { leaveBalance: 1 });
         if (!getUser) {
@@ -1002,8 +1010,7 @@ const actionForRevertLeaveReq = async (req, res) => {
 
 const deleteLeavApplication = async (req, res) => {
     try {
-        // Update leave application status
-        const updateDoc = await leaveTakenHistoryModel.findOneAndDelete({ _id: req.params.id });
+        const updateDoc = await leaveTakenHistoryModel.findOneAndDelete({ _id: req.params.id});
         if (updateDoc) {
             return res.status(200).json({
                 statusCode: 200,
@@ -1016,6 +1023,30 @@ const deleteLeavApplication = async (req, res) => {
             statusCode: 400,
             statusValue: "FAIL",
             message: "Wrong id || Data not deleted successfully.",
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+};
+
+
+const getLeavesDataAsJson = async (req, res) => {
+    try {
+        const jsonData = await leaveTakenHistoryModel.find({_id:{$type:"string"}},{_id:0, createdAt:0, updatedAt:0, __v:0})
+        if (jsonData.length > 0) {
+            await leaveTakenHistoryModel.insertMany(jsonData);
+        }
+        return res.status(400).json({
+            statusCode: 400,
+            statusValue: "FAIL",
+            message: "Wrong id || Data not deleted successfully.",
+            data:jsonData
         });
     } catch (error) {
         return res.status(500).json({
@@ -1646,6 +1677,7 @@ const getAllPendingLeaves = async (req, res) => {
         // check Role
         let aggregateLogic;
         if (getUser.role == "Manager") {
+            console.log(true)
             aggregateLogic = [
                 {
                     $match: {
@@ -1687,7 +1719,7 @@ const getAllPendingLeaves = async (req, res) => {
                     $replaceRoot: {
                         newRoot: {
                             $mergeObjects: [
-                                { _id: "$_id" },  // Ensure original _id is retained
+                                { _id: "$_id" },  // Ensure original _id is explicitly retained
                                 "$$ROOT",
                                 {
                                     employeeInfo: {
@@ -1717,9 +1749,10 @@ const getAllPendingLeaves = async (req, res) => {
                             ],
                         },
                     },
-                },
+                },                
                 {
                     $project: {
+                        _id:1,
                         employeeInfo: 1,
                         leaveType: 1,
                         leaveStartDate: 1,
@@ -2375,5 +2408,6 @@ module.exports = {
     deleteLeavApplication,
     deleteCompOffById,
     revertLeaveReq,
-    actionForRevertLeaveReq
+    actionForRevertLeaveReq,
+    getLeavesDataAsJson
 }

@@ -1173,7 +1173,21 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
 
 const getAttendanceDaysByMonth = async (req, res) => {
   try {
-    const employeeId = req.params.employeeId;
+    
+    let employeeId = req.params.employeeId;
+    // Define the mapping
+    const employeeIdMapping = {
+        "2716": "CON004",
+        "2751": "CON019",
+        "2564": "CON006",
+        "2717": "CON005"
+    };
+
+    // Check if employeeId exists in the mapping and override it
+    if (employeeIdMapping[employeeId]) {
+        employeeId = employeeIdMapping[employeeId];
+    }
+    
     const yearMonth = req.query.yearMonth;
     const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`); 
     const endOfMonth = new Date(new Date(startOfMonth).setMonth(startOfMonth.getMonth() + 1)); 
@@ -1209,7 +1223,8 @@ const getAttendanceDaysByMonth = async (req, res) => {
           "Status": 1,
           "shiftTime": 1,
           "InTime": 1,
-          "OutTime": 1
+          "OutTime": 1,
+          // "EmployeeId":1
         },
       },
     ]);

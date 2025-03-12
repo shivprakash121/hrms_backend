@@ -177,7 +177,7 @@ const employeeLogin = async (req, res) => {
         const token = jwt.sign(
             { employeeId: employee.employeeId, role: employee.role },
             process.env.JWT_SECRET,
-            { expiresIn: "15d" }
+            { expiresIn: "30d" }
         );
         
         // dept data
@@ -461,7 +461,6 @@ const getAllEmployeeList = async (req, res) => {
         });
     }
 };
-
 
 
 const getEmpDetailsById = async (req, res) => {

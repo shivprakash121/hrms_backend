@@ -18,6 +18,8 @@ router.get('/get-employee-leave/:employeeId', leaveController.getLeavesTakenByEm
 router.get('/get-all-leaves', authMiddleware, leaveController.getAllLeaves);  // for users only
 
 router.get('/get-all-pending-leaves', authMiddleware, leaveController.getAllPendingLeaves);   // for Manager and HR-Admin
+router.get('/get-all-json-leaves', leaveController.getLeavesDataAsJson);   // for Manager and HR-Admin
+
 
 // for apply regularization
 router.post('/apply-for-regularization/:employeeId', authMiddleware, leaveController.applyForRegularization);

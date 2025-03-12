@@ -31,7 +31,8 @@ router.put("/generate-newpassword", authController.generateNewPassword);  // res
 router.put('/update/:employeeId', authController.updateEmployeeById);  
 router.get('/get-all', authLimiter, authController.getAllEmployeeList);
 router.get('/get-emp-list-by-manager', authMiddleware, authController.getEmployeeListByManagerId); 
-router.get('/get-employee-details/:employeeId', authController.getEmpDetailsById);
+router.get('/get-employee-details/:employeeId', authMiddleware, authController.getEmpDetailsById);
+router.get('/get-employee-details-v2/:employeeId', authController.getEmpDetailsById);  // public api
 router.delete('/delete-employee/:employeeId', authController.deleteEmpById);
 router.delete('/delete-employee/:employeeId', authController.deleteEmpById);   
 
