@@ -9,7 +9,8 @@ const leaveBalanceSchema = new mongoose.Schema({
   earnedLeave: { type: String, default: "0" },
   paternityLeave: { type: String, default: "0" },
   maternityLeave: { type: String, default: "0" },
-  compOffLeave: { type: String, default: "0" },   
+  compOffLeave: { type: String, default: "0" },
+  optionalLeave: { type: String, default: "0" },  
 });
 
 const employeeSchema = new mongoose.Schema({

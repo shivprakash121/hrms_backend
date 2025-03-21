@@ -57,7 +57,7 @@ exports.uploadEmployeeFile = async (req, res) => {
 
         // Extract and validate the request body
         const { documentName, docType, employeeId, location } = req.body;
-
+        
         // Validate `documentName` and `docType`
         if (!documentName || !docType || !location) {
             return res.status(400).json({

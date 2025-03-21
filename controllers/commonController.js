@@ -8,6 +8,7 @@ const Joi = require("joi");
 const blacklist = require("../utils/blacklist");
 const leaveTakenHistoryModel = require("../models/leaveTakenHistoryModel");
 const holidaysModel = require("../models/holidayModel");
+const eventModel = require("../models/eventModel");
 // console.log(process.env.JWT_SECRET)
 
 
@@ -118,6 +119,78 @@ const updateHoliday = async (req, res) => {
 }
 
 
+const updateEventById = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        // Validate ID
+        if (!id) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Validation Error! Event ID is required.",
+            });
+        }
+
+        // Joi Schema for request validation
+        const schema = Joi.object({
+            title: Joi.string().optional(),
+            description: Joi.string().optional(),
+            location: Joi.string().allow("").optional(),
+            dateTime: Joi.string().optional(),
+            imageUrl: Joi.string().allow("").optional(),
+        });
+        
+        let result = schema.validate(req.body);
+        if (result.error) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: result.error.details[0].message,
+            });
+        }
+
+        // Check if event exists
+        const existingEvent = await eventModel.findById(id); 
+        if (!existingEvent) {
+            return res.status(404).json({
+                statusCode: 404,
+                statusValue: "FAIL",
+                message: "Event not found with the provided ID.",
+            });
+        }
+
+        // Update the event
+        const updatedEvent = await eventModel.findByIdAndUpdate(
+            id,
+            {
+                title: req.body.title || existingEvent.title,
+                description: req.body.description || existingEvent.description,
+                location: req.body.location || existingEvent.location,
+                dateTime: req.body.dateTime || existingEvent.dateTime,
+                imageUrl: req.body.imageUrl || existingEvent.imageUrl,
+            },
+            { new: true }
+        );
+
+        if (updatedEvent) {
+            return res.status(200).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Event updated successfully.",
+                data: updatedEvent,
+            });
+        }
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+};
+
 
 const deleteHoliday = async (req, res) => {
     try {
@@ -190,9 +263,133 @@ const getHolidayList = async (req, res) => {
 }
 
 
+const addNewEvent = async (req, res) => {
+    try {
+        const schema = Joi.object({
+            title: Joi.string().required(),
+            description: Joi.string().required(),
+            location: Joi.string().allow("").optional(),
+            dateTime: Joi.string().required(),
+            imageUrl: Joi.string().allow("").optional(),
+        });
+
+        let result = schema.validate(req.body);
+        if (result.error) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: result.error.details[0].message,
+            });
+        }
+        // Create a new event document
+        const newEvent = new eventModel({
+            title: req.body.title,
+            description: req.body.description,
+            location: req.body.location,
+            dateTime: req.body.dateTime,
+            imageUrl: req.body.imageUrl,
+        });
+
+        // Save the event in MongoDB
+        const savedEvent = await newEvent.save();
+
+        if (savedEvent) {
+            return res.status(201).json({
+                statusCode: 201,
+                statusValue: "SUCCESS",
+                message: "Event created successfully.",
+                data: savedEvent,
+            });
+        }
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+};
+
+const getEventList = async (req, res) => {
+    try {
+        // check already added or not
+        const getData = await eventModel.find({}).sort({createdAt:-1});
+        if (getData.length < 1) {
+            return res.status(404).json({
+                statusCode: 404,
+                statusValue: "FAIL",
+                message: "data not found",
+            });
+        }
+
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Holidays list get successfully.",
+            data: getData
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+}
+
+
+const deleteEvent = async (req, res) => {
+    try {
+        const {id} = req.params
+        if (!id) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Validation Error ! id is required.",
+            });
+        }
+        // check already added or not
+        const isExists = await eventModel.findOne({ _id: id});
+        if (!isExists) {
+            return res.status(404).json({
+                statusCode: 404,
+                statusValue: "FAIL",
+                message: "You have provided wrong id",
+            });
+        }
+
+        const deleteDoc = await eventModel.findOneAndDelete(
+            { _id: id}
+        )
+        if (deleteDoc) {
+            return res.status(200).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Data deleted successfully.",
+            });
+        }
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+}
+
+
+
 module.exports = {
     addNewHoliday,
     getHolidayList,
     updateHoliday,
-    deleteHoliday
+    deleteHoliday,
+    addNewEvent,
+    getEventList,
+    deleteEvent,
+    updateEventById
 }

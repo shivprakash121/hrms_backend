@@ -18,7 +18,11 @@ const AttendanceLogModel = require("../models/attendanceLogModel");
 const applyLeave = async (req, res) => {
     try {
         const schema = Joi.object({
-            leaveType: Joi.string().valid("medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "casualLeave", "compOffLeave", "optionalLeave").required(),
+            leaveType: Joi.string().valid(
+                "medicalLeave", "earnedLeave", "paternityLeave",
+                "maternityLeave", "casualLeave", "compOffLeave",
+                "optionalLeave"
+            ).required(),
             leaveStartDate: Joi.string().required(),
             leaveEndDate: Joi.string().allow("").optional(),
             totalDays: Joi.number().required(),
@@ -78,7 +82,7 @@ const applyLeave = async (req, res) => {
             }
         }
 
-        const leaveRes = validateLeaveDates(leaveStartDate, leaveEndDate, leaveType);
+        let leaveRes = validateLeaveDates(leaveStartDate, leaveEndDate, leaveType);
         if (!leaveRes.isValid) {
             return res.status(400).json({
                 statusCode: 400,
@@ -125,12 +129,13 @@ const applyLeave = async (req, res) => {
 
         const dateTime = getIndiaCurrentDateTime()
         
-        // check employee data
+        
         const availableBalance = await employeeModel.findOne(
             { $or: [{ employeeCode: req.params.employeeId }, { employeeId: req.params.employeeId }] },
             { employeeId: 1, leaveBalance: 1 }
-        );
-        
+        ).lean();
+
+        // console.log("Available Balance:", availableBalance.leaveBalance);
         if (!availableBalance) {
             return res.status(404).json({
                 message: "Employee not found",
@@ -139,23 +144,36 @@ const applyLeave = async (req, res) => {
             });
         }
         
+        // Extract leaveType safely
+        leaveType = req.body.leaveType?.trim();
+        // console.log("Available Leave Balance:", availableBalance.leaveBalance);
+        // console.log("Keys in Leave Balance:", Object.keys(availableBalance.leaveBalance));
+        // console.log("Checking for leaveType:", leaveType);
+        if (!leaveType || !availableBalance.leaveBalance || typeof availableBalance.leaveBalance !== "object" || !availableBalance.leaveBalance.hasOwnProperty(leaveType)) {
+            return res.status(400).json({
+                message: "Invalid leave type",
+                statusCode: 400,
+                statusValue: "error"
+            });
+        }
+
         // Fetch pending leaves of the same type for the employee
         const leaveHistory = await leaveTakenHistoryModel.find({
             employeeId: req.params.employeeId,
             status: "Pending",
-            leaveType: req.body.leaveType
+            leaveType: leaveType  // Ensure comparison is done correctly
         });
         
         // Calculate total pending leave balance
         let totalPendingLeaveBal = leaveHistory.reduce((sum, leave) => sum + Number(leave.totalDays), 0);
         totalPendingLeaveBal += Number(req.body.totalDays);
-        
+
         console.log('Total Pending Leave Balance:', totalPendingLeaveBal);
-        
-        // Get available leave balance for the requested leaveType
-        // const leaveType = req.body.leaveType;
-        const availableLeaveBal = Number(availableBalance.leaveBalance[leaveType] || 0);
-        
+
+        // Convert available balance to number safely
+        const availableLeaveBal = Number(availableBalance.leaveBalance[leaveType] || "0");
+
+        console.log(`Available Leave Balance for ${leaveType}:`, availableLeaveBal);
         // Check if available balance is less than total pending leave balance
         if (availableLeaveBal < totalPendingLeaveBal) {
             return res.status(400).json({
@@ -164,7 +182,6 @@ const applyLeave = async (req, res) => {
                 statusValue: "error"
             });
         }
-        
         // Proceed with leave request processing...
         // check already exists
         const isAlreadyExists = await leaveTakenHistoryModel.find({
@@ -665,7 +682,27 @@ const actionForLeavApplication = async (req, res) => {
                 message: result.error.details[0].message,
             });
         }
-
+        
+        // Extract the token from the Authorization header
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Token is required",
+            });
+        }
+        // Decode the token to get employee details
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded) {
+             return res.status(400).json({
+                 statusCode: 400,
+                 statusValue: "FAIL",
+                 message: "Invalid token",
+             });
+        }
+        
+        const loggedInUser = await employeeModel.findOne({employeeId:decoded.employeeId},{employeeName:1, employeeId:1, email:1})
         // Check leave data
         const leaveData = await leaveTakenHistoryModel.findOne({ _id: req.params.id });
         if (!leaveData) {
@@ -756,7 +793,7 @@ const actionForLeavApplication = async (req, res) => {
                 status: req.body.status,
                 approvedDateTime: dateTime,
                 approvedBy: getUser.employeeId,
-                remarks:req.body.remarks || ""
+                remarks:`Action taken by ${loggedInUser.employeeName}`
             }
         );
 
@@ -1350,9 +1387,104 @@ const getLeavesTakenByEmpId = async (req, res) => {
 
         // Extract pagination parameters
         const pageNumber = parseInt(req.query.page, 10) || 1; // Default page is 1
-        const limitNumber = parseInt(req.query.limit, 10) || 10; // Default limit is 10
+        const limitNumber = parseInt(req.query.limit, 10) || 20; // Default limit is 10
         const skip = (pageNumber - 1) * limitNumber;
 
+        // const aggregateLogic = [
+        //     {
+        //         $match: {
+        //             employeeId: req.params.employeeId,
+        //         },
+        //     },
+        //     {
+        //         $lookup: {
+        //             from: "employees",
+        //             localField: "employeeId",
+        //             foreignField: "employeeId",
+        //             as: "employeeInfo",
+        //         },
+        //     },
+        //     {
+        //         $unwind: {
+        //             path: "$employeeInfo",
+        //             preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
+        //         },
+        //     },
+        //     {
+        //         $addFields: {
+        //             statusPriority: {
+        //                 $switch: {
+        //                     branches: [
+        //                         { case: { $eq: ["$status", "Pending"] }, then: 1 },
+        //                         { case: { $eq: ["$status", "Approved"] }, then: 2 },
+        //                         { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+        //                     ],
+        //                     default: 4, // Fallback priority for unexpected statuses
+        //                 },
+        //             },
+        //         },
+        //     },
+        //     {
+        //         $sort: { statusPriority: 1, updatedAt: -1 },
+        //     },
+        //     {
+        //         $replaceRoot: {
+        //             newRoot: {
+        //                 $mergeObjects: [
+        //                     { _id: "$_id" }, // Ensure the original _id is preserved
+        //                     "$$ROOT",
+        //                     {
+        //                         employeeInfo: {
+        //                             employeeName: "$employeeInfo.employeeName",
+        //                             employeeCode: "$employeeInfo.employeeCode",
+        //                             gender: "$employeeInfo.gender",
+        //                             departmentId: "$employeeInfo.departmentId",
+        //                             designation: "$employeeInfo.designation",
+        //                             doj: "$employeeInfo.doj",
+        //                             employmentType: "$employeeInfo.employmentType",
+        //                             employeeStatus: "$employeeInfo.employeeStatus",
+        //                             accountStatus: "$employeeInfo.accountStatus",
+        //                             residentialAddress: "$employeeInfo.residentialAddress",
+        //                             permanentAddress: "$employeeInfo.permanentAddress",
+        //                             contactNo: "$employeeInfo.contactNo",
+        //                             email: "$employeeInfo.email",
+        //                             dob: "$employeeInfo.dob",
+        //                             bloodGroup: "$employeeInfo.bloodGroup",
+        //                             workPlace: "$employeeInfo.workPlace",
+        //                             emergencyContact: "$employeeInfo.emergencyContact",
+        //                             managerId: "$employeeInfo.managerId",
+        //                             leaveBalance: "$employeeInfo.leaveBalance",
+        //                             role: "$employeeInfo.role",
+        //                         },
+        //                     },
+        //                 ],
+        //             },
+        //         },
+        //     },            
+        //     {
+        //         $project: {
+        //             employeeInfo: 1,
+        //             leaveType: 1,
+        //             leaveStartDate: 1,
+        //             leaveEndDate: 1,
+        //             totalDays: 1,
+        //             reason: 1,
+        //             status: 1,
+        //             approvedBy: 1,
+        //             approvedDateTime: 1,
+        //             dateTime: 1,
+        //             location:1,
+        //             remarks:1,
+        //             revertLeave:1
+        //         },
+        //     },
+        //     {
+        //         $facet: {
+        //             metadata: [{ $count: "totalRecords" }],
+        //             data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+        //         },
+        //     },
+        // ];
         const aggregateLogic = [
             {
                 $match: {
@@ -1370,7 +1502,7 @@ const getLeavesTakenByEmpId = async (req, res) => {
             {
                 $unwind: {
                     path: "$employeeInfo",
-                    preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
+                    preserveNullAndEmptyArrays: false,
                 },
             },
             {
@@ -1382,19 +1514,25 @@ const getLeavesTakenByEmpId = async (req, res) => {
                                 { case: { $eq: ["$status", "Approved"] }, then: 2 },
                                 { case: { $eq: ["$status", "Rejected"] }, then: 3 },
                             ],
-                            default: 4, // Fallback priority for unexpected statuses
+                            default: 4,
+                        },
+                    },
+                    leaveStartDateConverted: {
+                        $dateFromString: {
+                            dateString: "$leaveStartDate",
+                            format: "%Y-%m-%d",
                         },
                     },
                 },
             },
             {
-                $sort: { statusPriority: 1, createdAt: -1 },
+                $sort: { statusPriority: 1, leaveStartDateConverted: -1 },
             },
             {
                 $replaceRoot: {
                     newRoot: {
                         $mergeObjects: [
-                            { _id: "$_id" }, // Ensure the original _id is preserved
+                            { _id: "$_id" },
                             "$$ROOT",
                             {
                                 employeeInfo: {
@@ -1428,7 +1566,7 @@ const getLeavesTakenByEmpId = async (req, res) => {
                 $project: {
                     employeeInfo: 1,
                     leaveType: 1,
-                    leaveStartDate: 1,
+                    leaveStartDate: 1, 
                     leaveEndDate: 1,
                     totalDays: 1,
                     reason: 1,
@@ -1436,18 +1574,20 @@ const getLeavesTakenByEmpId = async (req, res) => {
                     approvedBy: 1,
                     approvedDateTime: 1,
                     dateTime: 1,
-                    location:1,
-                    remarks:1,
-                    revertLeave:1
+                    location: 1,
+                    remarks: 1,
+                    revertLeave: 1
+                    // No need to explicitly exclude leaveStartDateConverted
                 },
             },
             {
                 $facet: {
                     metadata: [{ $count: "totalRecords" }],
-                    data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                    data: [{ $skip: skip }, { $limit: limitNumber }],
                 },
             },
         ];
+        
         const aggResult = await leaveTakenHistoryModel.aggregate(aggregateLogic);
         const totalRecords = aggResult[0]?.metadata[0]?.totalRecords || 0;
         const totalPages = Math.ceil(totalRecords / limitNumber);
@@ -1667,17 +1807,33 @@ const getAllPendingLeaves = async (req, res) => {
         }
 
         // Extract pagination parameters
+        var search = "";
+        if (req.query.search && req.query.search !== "undefined") {
+        search = req.query.search;
+        }
         const pageNumber = parseInt(req.query.page, 10) || 1; // Default page is 1
-        const limitNumber = parseInt(req.query.limit, 10) || 20; // Default limit is 10
+        const limitNumber = parseInt(req.query.limit, 10) || 20; // Default limit is 20
         const skip = (pageNumber - 1) * limitNumber;
 
         // console.log(decoded)
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
         // console.log(getUser)
-        // check Role
+        
+        let searchCondition = {};
+        if (search) {
+            searchCondition = {
+                $or: [
+                    { "employeeInfo.employeeCode": { $regex: search.split("").join(".*"), $options: "i" } }, // Character search
+                    { "employeeInfo.employeeName": { $regex: search.split("").join(".*"), $options: "i" } },  // Character search
+                    { "employeeInfo.email": { $regex: search.split("").join(".*"), $options: "i" } },           // Character search
+                    { "status": { $regex: search.split("").join(".*"), $options: "i" } }
+                ]
+            };
+        }
+
         let aggregateLogic;
         if (getUser.role == "Manager") {
-            console.log(true)
+            // console.log(true)
             aggregateLogic = [
                 {
                     $match: {
@@ -1697,6 +1853,9 @@ const getAllPendingLeaves = async (req, res) => {
                         path: "$employeeInfo",
                         preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
                     },
+                },
+                {
+                    $match: searchCondition, // Apply character search filter
                 },
                 {
                     $addFields: {
@@ -1800,6 +1959,9 @@ const getAllPendingLeaves = async (req, res) => {
                     },
                 },
                 {
+                    $match: searchCondition, // Apply character search filter
+                },
+                {
                     $addFields: {
                         statusPriority: {
                             $switch: {
@@ -1885,7 +2047,9 @@ const getAllPendingLeaves = async (req, res) => {
 
         const totalRecords = aggResult[0]?.metadata[0]?.totalRecords || 0;
         const totalPages = Math.ceil(totalRecords / limitNumber);
-
+        
+        
+        
         if (totalRecords > 0) {
             return res.status(200).json({
                 statusCode: 200,

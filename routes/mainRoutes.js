@@ -8,7 +8,9 @@ const {
     removeDuplicateAttendance,
     getAttendanceLogsTodays,
     generateUninformedLeave, 
-    approvedPendingLeaves
+    approvedPendingLeaves,
+    createAttendanceLogForOutDuty,
+    getAttendanceLogForOutDutyById
 } = require('../controllers/mainController');
 
 const router = express.Router();
@@ -41,6 +43,9 @@ router.get('/remove-duplicate-attendance-logs-by-month', removeDuplicateAttendan
 // router.get('/holidays-list', getHolidayList);
 router.get('/generate-uninformed-leave', generateUninformedLeave);
 router.get('/approve-pending-leaves-by-system', approvedPendingLeaves);
+
+router.post('/punch-in', createAttendanceLogForOutDuty);
+router.get('/get-log-records/:employeeId', getAttendanceLogForOutDutyById);
 
 
 // router.get('/punchTime',getPunchTimeDetails);  // temp-used

@@ -7,7 +7,8 @@ const leaveTakenHistoryModel = require("../models/leaveTakenHistoryModel");
 const holidaysModel = require("../models/holidayModel");
 const employeeModel = require("../models/employeeModel");
 const { DateTime } = require("mssql");
-
+const moment = require("moment-timezone");
+const attendanceLogModelForOutDuty = require("../models/attendanceLogModelForOutDuty");
 // // Get all tables in the database
 // const getTables = async (req, res) => {
 //   try {
@@ -1173,12 +1174,11 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
 
 const getAttendanceDaysByMonth = async (req, res) => {
   try {
-    
     let employeeId = req.params.employeeId;
     // Define the mapping
     const employeeIdMapping = {
         "2716": "CON004",
-        "2751": "CON019",
+        "2751": "CON020",
         "2564": "CON006",
         "2717": "CON005"
     };
@@ -1525,7 +1525,130 @@ const removeDuplicateLogs = async (req, res) => {
 };
 
 
+const createAttendanceLogForOutDuty = async (req, res) => {
+  try {
+      const { employeeId, location } = req.body;
+
+      // Validate required fields
+      if (!employeeId) {
+          return res.status(400).json({
+              message: "employeeId is required",
+              statusCode: 400,
+              statusValue: "error"
+          });
+      }
+      
+      // Get current date & time in India Standard Time (IST)
+      const now = moment().tz("Asia/Kolkata");
+
+      // Store AttendanceDate as YYYY-MM-DDT00:00:00.000Z (IST start of the day)
+      const AttendanceDate = now.startOf("day").toDate();
+
+      // Correctly format checkIn as "YYYY-MM-DD HH:mm:ss" in IST
+      const formattedCheckIn = now.format("YYYY-MM-DD HH:mm:ss");
+
+      // Format PunchRecords as "HH:mm:in(IN),"
+      const PunchRecords = `${now.format("HH:mm")}:in(IN),`;
+
+      // Check if the employee has already logged attendance for today
+      const existingLog = await attendanceLogModelForOutDuty.findOne({
+          employeeId,
+          AttendanceDate: {
+              $gte: AttendanceDate, // Start of the day
+              $lt: moment(AttendanceDate).add(1, "day").toDate() // Next day's start (exclusive)
+          }
+      });
+
+      if (existingLog) {
+          return res.status(400).json({
+              statusCode: 400,
+              statusValue: "FAIL",
+              message: "Attendance log already exists for today"
+          });
+      }
+
+      // Create a new attendance log
+      const newLog = new attendanceLogModelForOutDuty({
+          employeeId,
+          AttendanceDate, // Stores only the date (00:00:00 IST)
+          location,
+          InTime: formattedCheckIn,
+          PunchRecords,
+          OutTime: "NA",
+          imageUrl: "NA",
+          createdAt: now.toDate(),
+          updatedAt: now.toDate()
+      });
+
+      // Save to database
+      await newLog.save();
+
+      return res.status(201).json({
+          message: "Attendance log created successfully",
+          statusCode: 201,
+          statusValue: "success",
+          data: newLog
+      });
+  } catch (error) {
+      console.error("Error creating attendance log:", error);
+      return res.status(500).json({
+          message: "Internal Server Error",
+          statusCode: 500,
+          statusValue: "error"
+      });
+  }
+};
+
+
+const getAttendanceLogForOutDutyById = async (req, res) => {
+  try {
+      const { employeeId } = req.params;
+
+      // Validate required fields
+      if (!employeeId) {
+          return res.status(400).json({
+              message: "employeeId is required",
+              statusCode: 400,
+              statusValue: "error"
+          });
+      }
+      
+      // Get current date & time in India Standard Time (IST)
+      const now = moment().tz("Asia/Kolkata");
+
+      // Store AttendanceDate as YYYY-MM-DDT00:00:00.000Z (IST start of the day)
+      const AttendanceDate = now.startOf("day").toDate();
+
+      // Check if the employee has already logged attendance for today
+      const dataRecords = await attendanceLogModelForOutDuty.findOne({
+          employeeId,
+          AttendanceDate: {
+              $gte: AttendanceDate, // Start of the day
+              $lt: moment(AttendanceDate).add(1, "day").toDate() // Next day's start (exclusive)
+          }
+      });
+
+      return res.status(201).json({
+          message: "Attendance log created successfully",
+          statusCode: 201,
+          statusValue: "success",
+          data: dataRecords
+      });
+  } catch (error) {
+      console.error("Error creating attendance log:", error);
+      return res.status(500).json({
+          message: "Internal Server Error",
+          statusCode: 500,
+          statusValue: "error"
+      });
+  }
+};
+
+
+
 module.exports = {
+  createAttendanceLogForOutDuty,
+  getAttendanceLogForOutDutyById,
   getAllAttendanceLogs,
   getAttendanceLogsByEmployeeId,
   removeDuplicateLogs,

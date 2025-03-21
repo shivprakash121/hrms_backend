@@ -10,5 +10,11 @@ router.get('/get-holiday-list', commonController.getHolidayList);
 router.put('/update-holiday/:holiday_id', commonController.updateHoliday);
 router.delete('/delete-holiday/:holiday_id', commonController.deleteHoliday);
 
+// event routes
+router.post('/add-event', commonController.addNewEvent); 
+router.get('/get-event-list', commonController.getEventList);
+router.delete('/delete-event/:id', commonController.deleteEvent);
+router.put('/update-event/:id', commonController.updateEventById);
+
 
 module.exports = router;

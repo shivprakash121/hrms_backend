@@ -172,6 +172,7 @@ const backupAllCollections = async () => {
 // Call this function whenever you want to backup
 // backupAllCollections();
 
+
 const filePatterns = [
     "employeeModel_backup_",
     "compOffHistoryModel_backup_",
@@ -230,11 +231,6 @@ app.get("/api/get-json", (req, res) => {
 
 
 
-
-// backupAllCollections();
-
-// cron job for dump sql data into mongodb
-// startAttendanceCronJob()
 // startUpdateAttendanceCronJob();
 startRemoveAttendanceDuplicateRecords();
 
@@ -415,21 +411,21 @@ cron.schedule('40 0 1 * *', async () => {
 
 // Cron job for auto credited medicalLeave in jan by 6
 // Cron job for January 1st at midnight
-cron.schedule('0 0 1 1 *', async () => {
-    console.log('Running cron job to reset medicalLeave to 6 on January 1st...');
+// cron.schedule('0 0 1 1 *', async () => {
+//     console.log('Running cron job to reset medicalLeave to 6 on January 1st...');
 
-    try {
-        // Update all employees' medicalLeave to 6
-        const result = await employeeModel.updateMany(
-            {},
-            { $set: { 'leaveBalance.medicalLeave': '6' } }
-        );
+//     try {
+//         // Update all employees' medicalLeave to 6
+//         const result = await employeeModel.updateMany(
+//             {},
+//             { $set: { 'leaveBalance.medicalLeave': '6' } }
+//         );
 
-        console.log(`Successfully updated medicalLeave to 6 for ${result.nModified} employees.`);
-    } catch (error) {
-        console.error('Error updating medicalLeave on January 1st:', error);
-    }
-});
+//         console.log(`Successfully updated medicalLeave to 6 for ${result.nModified} employees.`);
+//     } catch (error) {
+//         console.error('Error updating medicalLeave on January 1st:', error);
+//     }
+// });
 
 // Cron job for auto credited medicalLeave in july by 6
 // Cron job for July 1st at midnight
@@ -449,11 +445,105 @@ cron.schedule('0 0 1 7 *', async () => {
     }
 });
 
-// Cron job for auto incremented earnedLeave quaterly by 4
-cron.schedule('30 0 1 1,4,7,10 *', async () => {
-    console.log('Running cron job to credit 4 earned leaves...');
+// GET API to reset medical leave
+app.get('/api/reset-medical-leaves', async (req, res) => {
+    console.log('Running function to reset medicalLeave to 6 on July 1st...');
 
     try {
+        // Update all employees' medicalLeave to 6
+        const result = await employeeModel.updateMany(
+            {},
+            { $set: { 'leaveBalance.medicalLeave': '6' } }
+        );
+
+        console.log(`Successfully updated medicalLeave to 6 for ${result.modifiedCount} employees.`);
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: `Successfully updated medicalLeave to 6 for ${result.modifiedCount} employees.`,
+            data: { modifiedCount: result.modifiedCount }
+        });
+
+    } catch (error) {
+        console.error('Error updating medicalLeave on July 1st:', error);
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message
+        });
+    }
+});
+
+
+// GET API to credit earned leaves
+// Cron job for auto incremented earnedLeave quaterly by 4
+// cron.schedule('30 0 1 1,4,7,10 *', async () => {
+//     console.log('Running cron job to credit 4 earned leaves...');
+
+//     try {
+//         await employeeModel.updateMany(
+//             { 'leaveBalance.earnedLeave': { $exists: false } },
+//             { $set: { 'leaveBalance.earnedLeave': '0' } } // Initialize as string
+//         );
+
+//         // Increment earnedLeave and ensure it is stored as a string
+//         const result = await employeeModel.updateMany(
+//             {},
+//             [
+//                 {
+//                     $set: {
+//                         'leaveBalance.earnedLeave': {
+//                             $toString: {
+//                                 $add: [
+//                                     { $toInt: '$leaveBalance.earnedLeave' },
+//                                     4
+//                                 ]
+//                             }
+//                         }
+//                     }
+//                 }
+//             ]
+//         );
+
+//         console.log(`Successfully credited 4 earned leaves for ${result.modifiedCount} employees.`);
+//     } catch (error) {
+//         console.error('Error crediting earned leaves:', error);
+//     }
+// });
+
+
+
+// Cron job for auto incremented casualLeave quaterly by 2
+// cron.schedule('30 0 1 1,4,7,10 *', async () => {
+//     console.log('Running cron job to credit 2 casual leaves...');
+
+//     try {
+//         await employeeModel.updateMany(
+//             { 'leaveBalance.casualLeave': { $exists: false } },
+//             { $set: { 'leaveBalance.casualLeave': '0' } } // Initialize as string
+//         );
+
+//         // Increment earnedLeave and ensure it is stored as a string
+//         const result = await employeeModel.updateMany(
+//             {},
+//             { $set: { 'leaveBalance.casualLeave': '2' } }
+//         );
+
+//         console.log(`Successfully credited 2 casual leaves for ${result.modifiedCount} employees.`);
+//     } catch (error) {
+//         console.error('Error crediting casual leaves:', error);
+//     }
+// });        
+
+
+// GET API to trigger casual leave crediting
+// GET API to credit earned leaves
+app.post('/api/credit-earned-leaves', async (req, res) => {
+    console.log('Running function to credit 4 earned leaves...');
+
+    try {
+        // Initialize leave balance if not set
         await employeeModel.updateMany(
             { 'leaveBalance.earnedLeave': { $exists: false } },
             { $set: { 'leaveBalance.earnedLeave': '0' } } // Initialize as string
@@ -479,71 +569,101 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
         );
 
         console.log(`Successfully credited 4 earned leaves for ${result.modifiedCount} employees.`);
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: `Successfully credited 4 earned leaves for ${result.modifiedCount} employees.`,
+            data: { modifiedCount: result.modifiedCount }
+        });
+
     } catch (error) {
         console.error('Error crediting earned leaves:', error);
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message
+        });
     }
 });
 
-// Cron job for auto incremented casualLeave quaterly by 2
-cron.schedule('30 0 1 1,4,7,10 *', async () => {
-    console.log('Running cron job to credit 2 casual leaves...');
+
+app.post('/api/credit-casual-leaves', async (req, res) => {
+    console.log('Running function to credit 2 casual leaves...');
 
     try {
+        // Initialize leave balance if not set
         await employeeModel.updateMany(
             { 'leaveBalance.casualLeave': { $exists: false } },
             { $set: { 'leaveBalance.casualLeave': '0' } } // Initialize as string
         );
 
-        // Increment earnedLeave and ensure it is stored as a string
+        // Update casual leave balance
         const result = await employeeModel.updateMany(
             {},
             { $set: { 'leaveBalance.casualLeave': '2' } }
         );
 
-        console.log(`Successfully credited 2 casual leaves for ${result.modifiedCount} employees.`);
+        console.log(`Successfully credited 2 casual leaves for employees.`);
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: `Successfully credited 2 casual leaves for employees.`,
+            // data: { modifiedCount: result.modifiedCount }
+        });
+
     } catch (error) {
         console.error('Error crediting casual leaves:', error);
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message
+        });
     }
 });
 
 
-// cron.schedule("*/2 * * * *", async () => {
-//     try {
-//         console.log("🔄 Running cron job to convert string _id to ObjectId...");
 
-//         // Step 1: Find all documents where `_id` is stored as a string
-//         const docs = await leaveTakenHistoryModel.find({ _id: { $type: "string" } });
+// Cron Job: Runs every 30 minutes to remove duplicate records from leave history
+cron.schedule("*/45 * * * *", async () => {
+    console.log("Running duplicate removal job for leave history...");
 
-//         if (docs.length === 0) {
-//             console.log("✅ No documents found with string _id.");
-//             return;
-//         }
+    try {
+        const duplicates = await leaveTakenHistoryModel.aggregate([
+            {
+                $group: {
+                    _id: {
+                        employeeId: "$employeeId",
+                        leaveStartDate: "$leaveStartDate",
+                        leaveEndDate: "$leaveEndDate"
+                    },
+                    ids: { $push: "$_id" },
+                    count: { $sum: 1 } 
+                }
+            },
+            {
+                $match: {
+                    count: { $gt: 1 } 
+                }
+            }
+        ]);
 
-//         console.log(`🔍 Found ${docs.length} documents with string _id.`);
+        // Extract IDs to delete (keeping the first occurrence)
+        const idsToDelete = duplicates.flatMap(doc => doc.ids.slice(1));
 
-//         // Step 2: Convert documents and prepare for re-insertion
-//         const convertedDocs = docs.map(doc => {
-//             return {
-//                 ...doc.toObject(), // Convert Mongoose doc to plain object
-//                 _id: new mongoose.Types.ObjectId(doc._id), // Convert `_id` to ObjectId
-//                 createdAt: new Date(doc.createdAt), // Keep original createdAt
-//                 updatedAt: new Date(doc.updatedAt), // Keep original updatedAt
-//             };
-//         });
+        if (idsToDelete.length > 0) {
+            await leaveTakenHistoryModel.deleteMany({ _id: { $in: idsToDelete } });
+            console.log(`Deleted ${idsToDelete.length} duplicate records.`);
+        } else {
+            console.log("No duplicates found.");
+        }
+    } catch (error) {
+        console.error("Error in cron job:", error);
+    }
+});
 
-//         // Step 3: Delete old documents with string `_id`
-//         const deleteResult = await leaveTakenHistoryModel.deleteMany({ _id: { $in: docs.map(doc => doc._id) } });
-//         console.log(`🗑️ Deleted ${deleteResult.deletedCount} documents with string _id.`);
 
-//         // Step 4: Re-insert the documents with the converted `_id`
-//         const insertResult = await leaveTakenHistoryModel.insertMany(convertedDocs);
-//         console.log(`✅ Successfully inserted ${insertResult.length} documents with ObjectId _id.`);
-
-//         console.log("🚀 Cron job completed successfully.");
-//     } catch (error) {
-//         console.error("❌ Error during cron job execution:", error);
-//     }
-// });
 
 
 app.listen(PORT, () => {
