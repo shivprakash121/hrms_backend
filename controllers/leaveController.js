@@ -2049,7 +2049,6 @@ const getAllPendingLeaves = async (req, res) => {
         const totalPages = Math.ceil(totalRecords / limitNumber);
         
         
-        
         if (totalRecords > 0) {
             return res.status(200).json({
                 statusCode: 200,

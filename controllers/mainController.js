@@ -1539,16 +1539,22 @@ const createAttendanceLogForOutDuty = async (req, res) => {
       }
       
       // Get current date & time in India Standard Time (IST)
-      const now = moment().tz("Asia/Kolkata");
+      const now = moment().tz("Asia/Kolkata"); // Correct current time
 
-      // Store AttendanceDate as YYYY-MM-DDT00:00:00.000Z (IST start of the day)
-      const AttendanceDate = now.startOf("day").toDate();
+      // Get AttendanceDate at the start of the day (00:00:00 IST)
+      const AttendanceDate = moment().tz("Asia/Kolkata").startOf("day").toDate();
 
-      // Correctly format checkIn as "YYYY-MM-DD HH:mm:ss" in IST
+      // Get the current time in IST for InTime
       const formattedCheckIn = now.format("YYYY-MM-DD HH:mm:ss");
 
       // Format PunchRecords as "HH:mm:in(IN),"
       const PunchRecords = `${now.format("HH:mm")}:in(IN),`;
+
+      // console.log({
+      //   AttendanceDate,
+      //   formattedCheckIn,
+      //   PunchRecords
+      // });
 
       // Check if the employee has already logged attendance for today
       const existingLog = await attendanceLogModelForOutDuty.findOne({
@@ -1591,6 +1597,71 @@ const createAttendanceLogForOutDuty = async (req, res) => {
       });
   } catch (error) {
       console.error("Error creating attendance log:", error);
+      return res.status(500).json({
+          message: "Internal Server Error",
+          statusCode: 500,
+          statusValue: "error"
+      });
+  }
+};
+
+
+const punchOutForOutDuty = async (req, res) => {
+  try {
+      const { id } = req.params;
+
+      // Validate required fields
+      if (!id) {
+          return res.status(400).json({
+              message: "Id is required",
+              statusCode: 400,
+              statusValue: "error"
+          });
+      }
+
+      // Get current date & time in India Standard Time (IST)
+      const now = moment().tz("Asia/Kolkata");
+
+      // Format OutTime as "YYYY-MM-DD HH:mm:ss" in IST
+      const formattedOutTime = now.format("YYYY-MM-DD HH:mm:ss");
+      // Format PunchRecord as "HH:mm:out(OUT)"
+      const punchOutRecord = `${now.format("HH:mm")}:out(OUT)`;
+      
+      // Check if the employee has an existing attendance log
+      const existingLog = await attendanceLogModelForOutDuty.findById(id);
+      if (!existingLog) {
+          return res.status(404).json({
+              statusCode: 404,
+              statusValue: "FAIL",
+              message: "Attendance log not found or invalid ID"
+          });
+      }
+      
+      // Append the punch-out time to PunchRecords
+      const updatedPunchRecords = existingLog.PunchRecords
+      ? `${existingLog.PunchRecords}${punchOutRecord},`
+      : `${punchOutRecord},`;
+
+      // Update the OutTime and PunchRecords fields
+      const updatedLog = await attendanceLogModelForOutDuty.findByIdAndUpdate(
+        id,
+        { 
+            $set: { 
+                OutTime: formattedOutTime,
+                PunchRecords: updatedPunchRecords
+            }
+        },
+        { new: true } // Returns the updated document
+      );
+
+      return res.status(200).json({
+          message: "Punch-out recorded successfully",
+          statusCode: 200,
+          statusValue: "success",
+          data: updatedLog
+      });
+  } catch (error) {
+      console.error("Error processing punch-out:", error);
       return res.status(500).json({
           message: "Internal Server Error",
           statusCode: 500,
@@ -1648,6 +1719,7 @@ const getAttendanceLogForOutDutyById = async (req, res) => {
 
 module.exports = {
   createAttendanceLogForOutDuty,
+  punchOutForOutDuty,
   getAttendanceLogForOutDutyById,
   getAllAttendanceLogs,
   getAttendanceLogsByEmployeeId,

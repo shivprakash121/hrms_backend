@@ -10,7 +10,8 @@ const {
     generateUninformedLeave, 
     approvedPendingLeaves,
     createAttendanceLogForOutDuty,
-    getAttendanceLogForOutDutyById
+    getAttendanceLogForOutDutyById,
+    punchOutForOutDuty
 } = require('../controllers/mainController');
 
 const router = express.Router();
@@ -45,6 +46,7 @@ router.get('/generate-uninformed-leave', generateUninformedLeave);
 router.get('/approve-pending-leaves-by-system', approvedPendingLeaves);
 
 router.post('/punch-in', createAttendanceLogForOutDuty);
+router.post('/punch-out/:id', punchOutForOutDuty);
 router.get('/get-log-records/:employeeId', getAttendanceLogForOutDutyById);
 
 
