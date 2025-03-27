@@ -91,6 +91,7 @@ const CompOff = require("./models/compOffHistoryModel.js");
 const moment = require("moment");
 const AttendanceLogModel = require("./models/attendanceLogModel.js");
 const leaveTakenHistoryModel = require("./models/leaveTakenHistoryModel.js");
+const AttendanceLogForOutDuty = require("./models/attendanceLogModelForOutDuty.js");
 
 // Backup dir
 const BACKUP_DIR = path.join(__dirname, "db_backup");
@@ -170,7 +171,7 @@ const backupAllCollections = async () => {
 };
 
 // Call this function whenever you want to backup
-backupAllCollections();
+// backupAllCollections();
 
 
 const filePatterns = [
@@ -664,34 +665,156 @@ cron.schedule("*/45 * * * *", async () => {
 });
 
 
+const mergeAttendance = async (req, res) => {
+    try {
+        const moment2 = require("moment-timezone");
+        // Get IST start and end times for the last 3 days
+        const todayIST = moment2().tz("Asia/Kolkata").startOf("day");
+        const todayStartUTC = todayIST.clone().subtract(5, "hours").subtract(30, "minutes").toDate();
+        const todayEndUTC = moment2().tz("Asia/Kolkata").endOf("day").subtract(5, "hours").subtract(30, "minutes").toDate();
 
+        const yesterdayIST = todayIST.clone().subtract(2, "day");
+        const yesterdayStartUTC = yesterdayIST.clone().subtract(5, "hours").subtract(30, "minutes").toDate();
+        const yesterdayEndUTC = yesterdayIST.clone().endOf("day").subtract(5, "hours").subtract(30, "minutes").toDate();
 
-function findLCM(a, b) {
-    let max = Math.max(a,b);
-    while(true) {
-        if(max % a === 0 && max % b === 0) {
-            return max;
+        const twoDaysAgoIST = todayIST.clone().subtract(3, "day");
+        const twoDaysAgoStartUTC = twoDaysAgoIST.clone().subtract(5, "hours").subtract(30, "minutes").toDate();
+        const twoDaysAgoEndUTC = twoDaysAgoIST.clone().endOf("day").subtract(5, "hours").subtract(30, "minutes").toDate();
+
+        // Fetch punch-in attendance logs
+        const punchInAttendanceLogs = await AttendanceLogForOutDuty.find({
+            AttendanceDate: { $gte: twoDaysAgoStartUTC, $lt: todayEndUTC }
+        }, { employeeId: 1, AttendanceDate: 1, InTime: 1, OutTime: 1 });
+        
+        // Fetch attendance logs
+        const attendanceLogs = await AttendanceLogModel.find({
+            AttendanceDate: { $gte: twoDaysAgoStartUTC, $lt: todayEndUTC }
+        }, { EmployeeCode: 1, AttendanceDate: 1, Status: 1, InTime: 1, OutTime: 1, PunchRecords: 1 });
+        
+        function getCommonAttendanceLogs(attendanceLogs, punchInAttendanceLogs) {
+            return attendanceLogs
+                .map(attendance => attendance.toJSON ? attendance.toJSON() : attendance) // Convert Mongoose documents to plain objects
+                .filter(attendance => 
+                    punchInAttendanceLogs.some(punch => 
+                        punch.employeeId === attendance.EmployeeCode && 
+                        new Date(punch.InTime).toISOString().split('T')[0] === new Date(attendance.AttendanceDate).toISOString().split('T')[0]
+                    )
+                )
+                .map(attendance => {
+                    const matches = punchInAttendanceLogs.filter(punch => 
+                        punch.employeeId === attendance.EmployeeCode && 
+                        new Date(punch.InTime).toISOString().split('T')[0] === new Date(attendance.AttendanceDate).toISOString().split('T')[0]
+                    );
+                    
+                    const inTimes = [attendance.InTime, ...matches.map(m => m.InTime)].filter(time => time && time !== "1900-01-01 00:00:00");
+                    const outTimes = [attendance.OutTime, ...matches.map(m => m.OutTime)].filter(Boolean);
+                    const punchRecords = [...attendance.PunchRecords || [], ...matches.map(m => `${m.InTime}:in(IN),${m.OutTime}:out(OUT)`)];
+                    
+                    return {
+                        _id: attendance._id,
+                        InTime: inTimes.length ? inTimes.sort()[0] : null, // Get the earliest InTime
+                        OutTime: outTimes.length ? outTimes.sort().reverse()[0] : null, // Get the latest OutTime
+                        Status: "Present", // Set status to 'Present' if a match is found
+                        PunchRecords: punchRecords.join(',')
+                    };
+                });
         }
-        max++;
+        
+        const commonAttendanceLogs = getCommonAttendanceLogs(attendanceLogs, punchInAttendanceLogs);
+        
+        for (const log of commonAttendanceLogs) {
+            await AttendanceLogModel.updateOne(
+                { _id: log._id }, 
+                { $set: { InTime: log.InTime, OutTime: log.OutTime, Status: log.Status, PunchRecords: log.PunchRecords } }
+            );
+        }
+
+        console.log("Attendance logs updated successfully");
+    } catch (error) {
+        console.error("Error in attendance update job:", error);
     }
 }
 
-console.log(findLCM(12,16))
+// mergeAttendance();
 
 
+// // create has map
+// function groupedAnagrams(arr) {
+//    if (arr.length < 1) return "array data is required"; 
+//    let anagramMap = new Map();
+
+//    for (let word of arr) {
+//       let sortedWord = word.split("").sort().join("");
+
+//       if(!anagramMap.has(sortedWord)) {
+//         anagramMap.set(sortedWord, []);  // key => value   emptyarray
+//       }
+//       anagramMap.get(sortedWord).push(word);
+//    }
+
+//    return Array.from(anagramMap.values());
+// }
+
+// console.log(groupedAnagrams(["eat","tea","tan","ant"]))
+
+// function quickSort(arr) {
+//     if (arr.length <= 1) return arr;
+
+//     let pivotIndex = Math.floor(arr.length/2);
+//     let pivot = arr[pivotIndex];
+
+//     let left = [];
+//     let right = [];
+//     let mid = [];
+
+//     for(let i = 0; i < arr.length; i++) {
+//         if (arr[i] < pivot) {
+//             left.push(arr[i])
+//         } else if (arr[i] > pivot) {
+//             right.push(arr[i])
+//         } else {
+//             mid.push(arr[i])
+//         }
+//     }
+//     return [...quickSort(left), ...mid, ...quickSort(right)]
+// }
+
+// console.log(quickSort([1,4,2,7,3,9,5,33]))
+
+// function findMaxKthItem(arr, k) {
+//    if (arr.length < 1) return "empty array";
+//    arr.sort((a,b) => b-a);
+//    return arr[k-1];
+// }
+
+// console.log(findMaxKthItem([1,33,55,22,11,4,66], 2))
 
 
+// function mergeTwoSortedArr(arr1, arr2) {
+//     let i = 0;
+//     let j = 0;
+//     let result = [];
 
+//     while(i < arr1.length && j < arr2.length) {
+//         if(arr1[i] < arr2[j]) {
+//             result.push(arr1[i]);
+//             i++;
+//         } else {
+//             result.push(arr2[j]);
+//             j++;
+//         }
+//     }
 
+//     while(i < arr1.length) {
+//         result.push(arr1[i++]);
+//     }
+//     while(j < arr2.length) {
+//         result.push(arr2[j++]);
+//     }
+//     return result;
+// }
 
-
-
-
-
-
-
-
-
+// console.log(mergeTwoSortedArr([1,3,5,7,9],[2,4,6,8]))
 
 
 

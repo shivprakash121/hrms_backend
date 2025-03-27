@@ -14,7 +14,7 @@ router.delete('/delete-leave-application/:id', authMiddleware, leaveController.d
 
 router.delete('/delete-compOff/:id', authMiddleware, leaveController.deleteCompOffById);
 
-router.get('/get-employee-leave/:employeeId', leaveController.getLeavesTakenByEmpId);
+router.get('/get-employee-leave/:employeeId', authMiddleware, leaveController.getLeavesTakenByEmpId);
 router.get('/get-all-leaves', authMiddleware, leaveController.getAllLeaves);  // for users only
 
 router.get('/get-all-pending-leaves', authMiddleware, leaveController.getAllPendingLeaves);   // for Manager and HR-Admin

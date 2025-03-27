@@ -242,8 +242,9 @@ const logout = async (req, res) => {
 const updateEmployeeById = async (req, res) => {
     try {
         const { employeeId } = req.params;
-        const updateData = req.body;
-        console.log(req.body)
+        const updateData = { ...req.body };
+        // console.log(121, req.body)
+        
         // Validate employeeId
         if (!employeeId) {
             return res.status(400).json({
@@ -252,28 +253,37 @@ const updateEmployeeById = async (req, res) => {
                 message: "Employee ID is required",
             });
         }
-        // Update the employee details
-        if (req.body.email || req.body.employeeId || req.body.loginPassword) {
-            return res.status(400).json({
-                statusCode: 400,
-                statusValue: "FAIL",
-                message: "EmployeeId, Email and Login Password can't be change.",
-            });
-        }
-        const updatedEmployee = await employeeModel.findOneAndUpdate(
-            { employeeId },
-            { $set: updateData },
-            { new: true, runValidators: true }
-        );
 
-        if (!updatedEmployee) {
+        // Restricted fields that should NOT be updated
+        const restrictedFields = ["email", "employeeId", "loginPassword"];
+        restrictedFields.forEach((field) => delete updateData[field]);
+
+        // Find the existing employee record
+        const empDetails = await employeeModel.findOne({ employeeId });
+
+        if (!empDetails) {
             return res.status(404).json({
                 statusCode: 404,
                 statusValue: "FAIL",
-                message: `Employee with ID ${employeeId} not found`,
+                message: "Employee not found",
             });
         }
 
+        // Merge old and new data for nested objects like `shiftTime` & `leaveBalance`
+        if (updateData.shiftTime) {
+            updateData.shiftTime = { ...empDetails.shiftTime, ...updateData.shiftTime };
+        }
+        if (updateData.leaveBalance) {
+            updateData.leaveBalance = { ...empDetails.leaveBalance, ...updateData.leaveBalance };
+        }
+
+        // Update only provided fields
+        const updatedEmployee = await employeeModel.findOneAndUpdate(
+            { employeeId },
+            { $set: updateData }, // Updates only provided fields
+            { new: true, runValidators: true }
+        );
+        
         // Success response
         return res.status(200).json({
             statusCode: 200,
@@ -323,7 +333,7 @@ const getEmployeeListByManagerId = async (req, res) => {
         }
         if (decoded.role === "Super-Admin") {
             // Calculate the total number of employees
-            const totalCount = await employeeModel.countDocuments({});
+            const totalCount = await employeeModel.countDocuments({managerId:decoded.employeeId});
 
             if (totalCount === 0) {
                 return res.status(404).json({
@@ -332,13 +342,13 @@ const getEmployeeListByManagerId = async (req, res) => {
                     message: "No employees found.",
                 });
             }
-
+             
             // Calculate total pages
             const totalPages = Math.ceil(totalCount / limitNumber);
 
             // Retrieve paginated employee records
             const employees = await employeeModel
-                .find({})
+                .find({managerId:decoded.employeeId})
                 .skip((pageNumber - 1) * limitNumber)
                 .limit(limitNumber);
 
@@ -354,6 +364,7 @@ const getEmployeeListByManagerId = async (req, res) => {
                 limit: limitNumber,
             });
         }
+        
         // Calculate the total number of employees
         const totalCount = await employeeModel.countDocuments({managerId: decoded.employeeId});
 
@@ -406,13 +417,13 @@ const getAllEmployeeList = async (req, res) => {
         const secretKey = "KN8Ehf?zG,J*>:v;6Y!~F%";
         const { key } = req.body;
 
-        if (!key || key !== secretKey ) {
-            return res.status(404).json({
-                statusCode: 404,
-                statusValue: "FAIL",
-                message: "Error! key is required! || Wrong key provided!",
-            });
-        }
+        // if (!key || key !== secretKey ) {
+        //     return res.status(404).json({
+        //         statusCode: 404,
+        //         statusValue: "FAIL",
+        //         message: "Error! key is required! || Wrong key provided!",
+        //     });
+        // }
 
         // Ensure `page` and `limit` are integers
         const pageNumber = parseInt(page, 10);

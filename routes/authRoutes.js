@@ -9,7 +9,7 @@ const authMiddleware = require('../middlewares/authMiddleware');
 
 const authLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minutes window
-    max: 5, // Allow only 5 requests per window per IP
+    max: 50, // Allow only 5 requests per window per IP
     message: {
         statusCode: 429,
         statusValue: "Too Many Requests",
@@ -30,6 +30,7 @@ router.put("/generate-newpassword", authController.generateNewPassword);  // res
 
 router.put('/update/:employeeId', authController.updateEmployeeById);  
 router.get('/get-all', authLimiter, authController.getAllEmployeeList);
+
 router.get('/get-emp-list-by-manager', authMiddleware, authController.getEmployeeListByManagerId); 
 router.get('/get-employee-details/:employeeId', authMiddleware, authController.getEmpDetailsById);
 router.get('/get-employee-details-v2/:employeeId', authController.getEmpDetailsById);  // public api

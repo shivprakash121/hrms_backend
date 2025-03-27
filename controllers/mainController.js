@@ -1316,12 +1316,20 @@ const getAttendanceDaysByMonth = async (req, res) => {
       }
     });
 
-    const formattedResult = finalResult.map(item => {
+    let formattedResult = finalResult.map(item => {
       const date = new Date(item.AttendanceDate);
       const options = { day: 'numeric', month: 'long', year: 'numeric' };
       const formattedDate = new Intl.DateTimeFormat('en-GB', options).format(date);
       return { ...item, AttendanceDate: formattedDate };
     });
+    
+    const empData = await employeeModel.findOne({employeeId:req.params.employeeId},{shiftTime:1});
+    if (empData && empData.shiftTime) {
+      formattedResult = formattedResult.map(entry =>({
+        ...entry,
+        shiftTime: entry.shiftTime || empData.shiftTime
+      }))
+    }
 
     if (aggResult.length > 0) {
       return res.status(200).json({
@@ -1530,7 +1538,7 @@ const createAttendanceLogForOutDuty = async (req, res) => {
       const { employeeId, location } = req.body;
 
       // Validate required fields
-      if (!employeeId) {
+      if (!employeeId && !location) {
           return res.status(400).json({
               message: "employeeId is required",
               statusCode: 400,
@@ -1538,23 +1546,11 @@ const createAttendanceLogForOutDuty = async (req, res) => {
           });
       }
       
-      // Get current date & time in India Standard Time (IST)
-      const now = moment().tz("Asia/Kolkata"); // Correct current time
-
-      // Get AttendanceDate at the start of the day (00:00:00 IST)
+      const now = moment().tz("Asia/Kolkata");
       const AttendanceDate = moment().tz("Asia/Kolkata").startOf("day").toDate();
-
-      // Get the current time in IST for InTime
       const formattedCheckIn = now.format("YYYY-MM-DD HH:mm:ss");
-
-      // Format PunchRecords as "HH:mm:in(IN),"
+      const OutTime = now.format("YYYY-MM-DD") + " 23:59:00" // print 2025-03-26 HH:mm:ss
       const PunchRecords = `${now.format("HH:mm")}:in(IN),`;
-
-      // console.log({
-      //   AttendanceDate,
-      //   formattedCheckIn,
-      //   PunchRecords
-      // });
 
       // Check if the employee has already logged attendance for today
       const existingLog = await attendanceLogModelForOutDuty.findOne({
@@ -1580,7 +1576,7 @@ const createAttendanceLogForOutDuty = async (req, res) => {
           location,
           InTime: formattedCheckIn,
           PunchRecords,
-          OutTime: "NA",
+          OutTime,
           imageUrl: "NA",
           createdAt: now.toDate(),
           updatedAt: now.toDate()

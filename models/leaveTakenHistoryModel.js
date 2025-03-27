@@ -56,7 +56,7 @@ const leaveTakenHistorySchema = new mongoose.Schema({
     requestedDateTime: { type: String, default:"" },
     approvedDateTime: { type: String, default:"" },
     revertedDays: { type: String, default:"" },
-    status: { type: String, default: "Pending" },
+    status: { type: String, default: "" },
   },
   dateTime:{ type: String, default:"" },  
   createdAt: { type: Date, default: Date.now }, 

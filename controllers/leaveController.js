@@ -1597,7 +1597,7 @@ const getLeavesTakenByEmpId = async (req, res) => {
                 statusCode: 200,
                 statusValue: "SUCCESS",
                 message: "Data fetched successfully.",
-                data: aggResult[0].data,
+                data: aggResult[0]?.data,
                 totalRecords,
                 totalPages,
                 currentPage: pageNumber,
@@ -1937,7 +1937,7 @@ const getAllPendingLeaves = async (req, res) => {
                 },
             ];
 
-        } else if (getUser.role == "HR-Admin" || getUser.role == "Admin" || getUser.role == "Super-Admin") {
+        } else if (getUser.role == "HR-Admin" || getUser.role == "Admin") {
             aggregateLogic = [
                 // {
                 //   $match: {
@@ -2040,6 +2040,108 @@ const getAllPendingLeaves = async (req, res) => {
                 },
             ];
 
+        } else if (getUser.role == "Super-Admin") {
+            aggregateLogic = [
+                {
+                  $match: {
+                    approvedBy: getUser.employeeId,
+                  },
+                },
+                {
+                    $lookup: {
+                        from: "employees",
+                        localField: "employeeId",
+                        foreignField: "employeeId",
+                        as: "employeeInfo",
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$employeeInfo",
+                        preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
+                    },
+                },
+                {
+                    $match: searchCondition, // Apply character search filter
+                },
+                {
+                    $addFields: {
+                        statusPriority: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ["$status", "Pending"] }, then: 1 },
+                                    { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                    { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+                                ],
+                                default: 4, // Fallback priority for unexpected statuses
+                            },
+                        },
+                    },
+                },
+                {
+                    $sort: { statusPriority: 1, createdAt: -1 },
+                },
+                {
+                    $replaceRoot: {
+                        newRoot: {
+                            $mergeObjects: [
+                                { _id: "$_id" },  // Ensure original _id is retained
+                                "$$ROOT",
+                                {
+                                    employeeInfo: {
+                                        employeeName: "$employeeInfo.employeeName",
+                                        employeeCode: "$employeeInfo.employeeCode",
+                                        employeeId: "$employeeInfo.employeeId",
+                                        gender: "$employeeInfo.gender",
+                                        departmentId: "$employeeInfo.departmentId",
+                                        designation: "$employeeInfo.designation",
+                                        doj: "$employeeInfo.doj",
+                                        employmentType: "$employeeInfo.employmentType",
+                                        employeeStatus: "$employeeInfo.employeeStatus",
+                                        accountStatus: "$employeeInfo.accountStatus",
+                                        residentialAddress: "$employeeInfo.residentialAddress",
+                                        permanentAddress: "$employeeInfo.permanentAddress",
+                                        contactNo: "$employeeInfo.contactNo",
+                                        email: "$employeeInfo.email",
+                                        dob: "$employeeInfo.dob",
+                                        bloodGroup: "$employeeInfo.bloodGroup",
+                                        workPlace: "$employeeInfo.workPlace",
+                                        emergencyContact: "$employeeInfo.emergencyContact",
+                                        managerId: "$employeeInfo.managerId",
+                                        leaveBalance: "$employeeInfo.leaveBalance",
+                                        role: "$employeeInfo.role",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+                {
+                    $project: {
+                        employeeInfo: 1,
+                        leaveType: 1,
+                        leaveStartDate: 1,
+                        leaveEndDate: 1,
+                        totalDays: 1,
+                        reason: 1,
+                        status: 1,
+                        approvedBy: 1,
+                        approvedDateTime: 1,
+                        dateTime: 1,
+                        location:1,
+                        remarks:1,
+                        updatedAt:1,
+                        createdAt:1,
+                        revertLeave:1
+                    },
+                },
+                {
+                    $facet: {
+                        metadata: [{ $count: "totalRecords" }],
+                        data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                    },
+                },
+            ];
         }
 
         const aggResult = await leaveTakenHistoryModel.aggregate(aggregateLogic);
@@ -2104,7 +2206,7 @@ const getAllPendingCompoff = async (req, res) => {
 
         // Extract pagination parameters
         const pageNumber = parseInt(req.query.page, 10) || 1; // Default page is 1
-        const limitNumber = parseInt(req.query.limit, 10) || 10; // Default limit is 10
+        const limitNumber = parseInt(req.query.limit, 10) || 20; // Default limit is 10
         const skip = (pageNumber - 1) * limitNumber;
 
         // console.log(decoded)
@@ -2112,7 +2214,7 @@ const getAllPendingCompoff = async (req, res) => {
         // console.log('check-user', decoded)
         // check Role
         let aggregateLogic;
-        if (getUser.role == "Manager") {
+        if (getUser.role == "Manager" || getUser.role == "Super-Admin") {
             aggregateLogic = [
                 {
                     $match: {
@@ -2197,7 +2299,7 @@ const getAllPendingCompoff = async (req, res) => {
                 },
             ];
 
-        } else if (getUser.role == "HR-Admin" || getUser.role == "Super-Admin") {
+        } else if (getUser.role == "HR-Admin" || getUser.role == "Admin") {
             aggregateLogic = [
                 // {
                 //   $match: {

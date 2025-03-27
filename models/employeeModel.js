@@ -68,6 +68,8 @@ const employeeSchema = new mongoose.Schema({
     type: String,
     default: "Employee",
   },
+  isProbation:{ type: Boolean, default: false },
+  isNotice:{ type: Boolean, default: false },
 },{
     timestamps: true
 });

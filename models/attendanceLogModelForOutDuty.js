@@ -10,6 +10,8 @@ const attendanceLogSchema = new mongoose.Schema({
     OutTime: { type: String, default: "" },
     PunchRecords: { type: String, default: "" },
     imageUrl: { type: String, default: "" },
+    Status: { type: String, default: "Present " },
+    Duration: { type: String, default: "" },
     createdAt: { type: Date, default: Date.now }, 
     updatedAt: { type: Date, default: Date.now },
 });
