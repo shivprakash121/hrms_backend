@@ -92,6 +92,7 @@ const moment = require("moment");
 const AttendanceLogModel = require("./models/attendanceLogModel.js");
 const leaveTakenHistoryModel = require("./models/leaveTakenHistoryModel.js");
 const AttendanceLogForOutDuty = require("./models/attendanceLogModelForOutDuty.js");
+const holidaysModel = require("./models/holidayModel.js");
 
 // Backup dir
 const BACKUP_DIR = path.join(__dirname, "db_backup");
@@ -129,7 +130,7 @@ const deleteOldBackups = () => {
         const match = file.match(/\d{4}-\d{2}-\d{2}/);
         if (match) {
             const fileDate = moment(match[0], "YYYY-MM-DD");
-            const sevenDaysAgo = moment().subtract(7, "days");
+            const sevenDaysAgo = moment().subtract(10, "days");
 
             if (fileDate.isBefore(sevenDaysAgo)) {
                 const filePath = path.join(BACKUP_DIR, file);
@@ -664,6 +665,78 @@ cron.schedule("*/45 * * * *", async () => {
     }
 });
 
+cron.schedule("*/10 * * * *", async () => {
+    console.log("Running EmployeeCode update job...");
+
+    try {
+        const updateOperations = [
+            { EmployeeId: 2564, EmployeeCode: "2564" },
+            { EmployeeId: 2751, EmployeeCode: "2751" },
+            { EmployeeId: 2717, EmployeeCode: "2717" },
+            { EmployeeId: 2716, EmployeeCode: "2716" }
+        ];
+
+        await AttendanceLogModel.updateMany({EmployeeId:2564},{$set:{EmployeeCode:"2564"}})
+        await AttendanceLogModel.updateMany({EmployeeId:2751},{$set:{EmployeeCode:"2751"}})
+        await AttendanceLogModel.updateMany({EmployeeId:2717},{$set:{EmployeeCode:"2717"}})
+        await AttendanceLogModel.updateMany({EmployeeId:2716},{$set:{EmployeeCode:"2716"}})
+
+    } catch (error) {
+        console.error("Error in EmployeeCode update job:", error);
+    }
+});
+
+// const updateHolidayStatus = async () => {
+//     try {
+//       const holidayList = await holidaysModel.find({}, { holidayDate: 1 });
+  
+//       const holidayDates = holidayList.map((holiday) => 
+//         new Date(`${holiday.holidayDate}T00:00:00.000Z`) 
+//       );
+
+//       const attendanceUpdate = await AttendanceLogModel.updateMany(
+//         { 
+//           AttendanceDate: { $in: holidayDates },
+//           $or: [{ PunchRecords: null }, { PunchRecords: "" }]
+//         },
+//         { $set: { Status: "Holiday", Holiday: 1, StatusCode:"H" } }
+//       );
+  
+//       console.log(`${attendanceUpdate.modifiedCount} records updated.`);
+//     } catch (error) {
+//       console.error("Error updating holiday status in AttendanceLogModel:", error);
+//     }
+// };
+  
+// updateHolidayStatus();
+
+// For update attendance log for holiday status
+
+cron.schedule("*/50 * * * *", async () => {
+    console.log("Running Holiday Status update job...");
+
+    try {
+        const holidayList = await holidaysModel.find({}, { holidayDate: 1 });
+    
+        const holidayDates = holidayList.map((holiday) => 
+          new Date(`${holiday.holidayDate}T00:00:00.000Z`) 
+        );
+  
+        const attendanceUpdate = await AttendanceLogModel.updateMany(
+          { 
+            AttendanceDate: { $in: holidayDates },
+            $or: [{ PunchRecords: null }, { PunchRecords: "" }]
+          },
+          { $set: { Status: "Holiday", Holiday: 1, StatusCode:"H" } }
+        );
+    
+        console.log(`${attendanceUpdate.modifiedCount} records updated.`);
+    } catch (error) {
+        console.error("Error updating holiday status in AttendanceLogModel:", error);
+    }
+});
+
+
 
 const mergeAttendance = async (req, res) => {
     try {
@@ -817,51 +890,245 @@ const mergeAttendance = async (req, res) => {
 // console.log(mergeTwoSortedArr([1,3,5,7,9],[2,4,6,8]))
 
 
+// function removeDuplicateObj(arr, key) {
+//     let map = new Map();
+
+//     for (let obj of arr) {
+//         map.set(obj[key], obj)  // obj[key] is a value on obj key and obj treated as value
+//     }
+//     return Array.from(map.values());
+// }
+
+// const data = [
+//     { id:1, name: "shiv" },
+//     { id:2, name: "rohan" },
+//     { id:2, name: "rohan" }
+// ]
+
+// console.log(removeDuplicateObj(data, "id"));
+
+
+// function removeDuplicateObj(arr, key) {
+//     let set = new Set();
+
+//     return arr.filter(obj => {
+//         if(set.has(obj[key])) return false;
+//         set.add(obj[key]);
+//         return true;
+//     })
+// }
+
+// const data = [
+//     { id:1, name: "shiv" },
+//     { id:2, name: "rohan" },
+//     { id:2, name: "rohan" }
+// ]
+// console.log(removeDuplicateObj(data, "id"));
+
+// function countOccurencesOfWords(str) {
+//     let words = str.toLowerCase().replace(/[^a-zA-Z0-9]/g, " ").split(" ");
+//     let map = new Map();
+
+//     for (let word of words) {
+//         if(word) {
+//             map.set(word, (map.get(word) || 0) + 1);
+//         }
+//     }
+
+//     return Object.fromEntries(map);
+// }
+
+// console.log(countOccurencesOfWords("hello howare ypou? hello"))
+
+// // using reduce method
+// function countOccurencesOfWords(str) {
+//     let words = str.toLowerCase().replace(/[^a-zA-Z0-9]/g, " ").split(" ");
+
+//     return words.reduce((acc, word) => {
+//        if(word) acc[word] = (acc[word] || 0) + 1;
+//        return acc;
+//     }, {})
+// }
+
+// console.log(countOccurencesOfWords("hello how are you? hello"))
+
+// function deepClone(obj) {
+//     return structuredClone(obj);
+// }
+
+// const originalObj = {a:1, b:{c:3}};
+// const clonedObj = deepClone(originalObj);
+// clonedObj.b.c = 44;
+// console.log(clonedObj)
+// console.log(originalObj)
+
+
+// function objToArray(obj) {
+//     return Object.entries(obj);
+// }
+// const obj = {name:"Shiv", age: 28, address: "Noida sector 71"};
+// console.log(objToArray(obj))
+
+// function objToArray(obj) {
+//     let result = [];
+
+//     for (let key in obj) {
+//         if (obj.hasOwnProperty(key)) {
+//             result.push([key, obj[key]]);
+//         }
+//     }
+//     return result;
+// }
+
+// const obj = {name:"Shiv", age: 28, address: "Noida sector 71"};
+// console.log(objToArray(obj))
+
+
+// function longestWord(sentence) {
+//     let strToArray = sentence.split(" ");
+
+//     return strToArray.reduce((acc, curr) =>  curr.length > acc.length ? curr: acc, "");
+// }
+
+// console.log(longestWord("Hello how are you doing?"))
+
+// function findMostFrequentElem(arr) {
+//     let freqMap = new Map();
+//     let maxCount = 0;
+//     let mostFreqElem = null;
+
+//     for (let element of arr) {
+//         freqMap.set(element, (freqMap.get(element) || 0) + 1);
+//         if(freqMap.get(element) > maxCount) {
+//             maxCount = freqMap.get(element);
+//             mostFreqElem = element;
+//         }
+//     }
+//     return mostFreqElem;
+// }
+
+// console.log(findMostFrequentElem([1,2,3,4,5,6,3,1,2,4,5,6,3,2]));
+
+// time complexity : O(n), space compl : O(n)
+
+// function findMostFrequentElem(arr) {
+//     let freq = arr.reduce((acc, curr) => {
+//         acc[curr] = (acc[curr] || 0) + 1;
+//         return acc;
+//     }, {});
+
+//     return Object.keys(freq).reduce((a, b) => (freq[a] > freq[b] ? a: b))
+// }
+
+// console.log(findMostFrequentElem([1,2,3,4,5,6,3,1,2,4,5,6,3,2]));
+
+
+// function findMedian(arr) {
+//     arr.sort((a,b) => a-b);
+//     let n = arr.length;
+//     let mid = Math.floor(n/2);
+
+//     return n % 2 !== 0 ? arr[mid] : (arr[mid] + arr[mid-1])/2;
+// } 
+
+// console.log(findMedian([1,2,3,4,5,6,3,1,2,4,5,6,3,2]))
+
+// check two object are deep equal or not
+
+// function deepEqual(obj1, obj2) {
+//     if (obj1 === obj2) return true;
+
+//     if (typeof obj1 !== "object" || typeof obj2 !== "object" || obj1 === null || obj2 === null) {
+//         return false;
+//     }
+
+//     let keys1 = Object.keys(obj1);
+//     let keys2 = Object.keys(obj2);
+
+//     if (keys1.length !== keys2.length) return false;
+
+//     for (let key of keys1) {
+//         if (!keys2.includes(key) || !deepEqual(obj1[key], obj2[key])) {
+//             return false;
+//         }
+//     }
+//     return true;
+// }
+
+// const obj1 = {a:1,b:2,c:{d:4}}
+// const obj2 = {a:1,b:2,c:{d:4}}
+
+// console.log(deepEqual(obj1, obj2))
 
 
 
+// function deepEqual(obj1, obj2) {
+//     return JSON.stringify(obj1) === JSON.stringify(obj2);
+// }
+
+// const obj1 = {a:1,b:2,c:{d:4}}
+// const obj2 = {a:1,b:2,c:{d:44}}
+
+// console.log(deepEqual(obj1, obj2))
+
+
+// function findLongestSubsequenceOfArray(arr) {
+//    let n = arr.length;
+//    if (n < 1) return 0;
+
+//    let dp = new Array(n).fill(1)
+//    for (let i = 1; i < n; i++) {
+//     for (let j = 0; j < i; j++) {
+//         if (arr[i] > arr[j]) {
+//             dp[i] = Math.max(dp[i], dp[j]+1);
+//         }
+//     }
+//    }
+
+//    return Math.max(...dp);
+// }
+
+// const arr = [10,22,33,50,40,60,80] // Output: 6
+
+// console.log(findLongestSubsequenceOfArray(arr))
+
+// const fetchData = () => {
+//     return new Promise((resolve, reject) => {
+//         setTimeout(() => {
+//             resolve("Data fetched successfully.")
+//         }, 1000)
+//     })
+// }
+
+
+// fetchData().then((data) => console.log(data)).catch((error) => console.error());
 
 
 
+// function createCounter() {
+//     let count = 0;
 
+//     return function() {
+//         count++;
+//         console.log(count);
+//     } 
+// }
 
+// const counter = createCounter();
+// counter();
+// counter();
+// counter();
 
+// function sumAll(...args) {
+//     return args.reduce((acc, curr) => acc+curr, 0);
+// }
 
+// console.log(sumAll(1,2,3,4,5,6,7,33))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// (function (name) {
+//     var msg = "Hello i am here";
+//     console.log(`${msg} ${name}`);
+// })("shiv")
 
 
 

@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 // Define the schema for AttendanceLog
 const attendanceLogSchema = new mongoose.Schema({
   EmployeeName: { type: String, required: true },
-  EmployeeCode: { type: String, required: true },
+  EmployeeCode: { type: String, },
   Gender: { type: String, required: true },
   Designation: { type: String, default: "" },
   CategoryId: { type: Number, required: true },

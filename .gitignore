@@ -6,3 +6,4 @@ info.log
 *.env.staging
 *.txt
 *.zip
+/db_backup

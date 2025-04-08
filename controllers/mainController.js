@@ -497,6 +497,256 @@ const approvedPendingLeaves = async (req, res) => {
 };
 
 
+// const generateUninformedLeave = async (req, res) => {
+//   try {
+
+//     // Extract query parameters
+//     const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : null;
+//     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null;
+
+//     // Build the filter object for MongoDB query
+//     let filter = {};
+
+//     // Apply date range filter
+//     if (dateFrom && dateTo) {
+//       filter.AttendanceDate = {
+//         $gte: dateFrom,
+//         $lte: dateTo
+//       };
+//     }
+//     // Fetch attendance records
+//     const dataResult = await AttendanceLogModel.find(filter, {
+//       AttendanceDate: 1, EmployeeCode: 1, Duration: 1, Status: 1, EmployeeId: 1, InTime:1
+//     });
+
+//     // Remove duplicate attendance records Absent
+//     const uniqueRecords = dataResult.reduce((acc, record) => {
+//       const uniqueKey = `${record.AttendanceDate.toISOString()}_${record.EmployeeCode}`;
+//       if (!acc.seen.has(uniqueKey)) {
+//         acc.seen.add(uniqueKey);
+//         acc.filtered.push(record);
+//       }
+//       return acc;
+//     }, { seen: new Set(), filtered: [] }).filtered;
+
+//     if (uniqueRecords.length === 0) {
+//       return res.status(200).json({
+//         statusCode: 200,
+//         statusValue: "SUCCESS",
+//         message: "No attendance records found in the given date range.",
+//         data: []
+//       });
+//     }
+
+//     // Fetch all employees to create employee-manager map
+//     const employeesData = await employeeModel.find({}, { employeeId: 1, managerId: 1, workingDays: 1 });
+
+//     // Create employee-manager map
+//     const employeeManagerMap = new Map();
+//     employeesData.forEach(emp => {
+//       employeeManagerMap.set(emp.employeeId.toString(), {
+//         managerId: emp.managerId,
+//         workingDays: emp.workingDays
+//       });
+//     });
+
+//     // Fetch leave history (Approved)
+//     const leaveData = await leaveTakenHistoryModel.find(
+//       {$or:[{status:"Pending"},{status:"Approved"}]},
+//       { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 }
+//     );
+//     //  console.log(uniqueRecords) 
+//     // Filter records where leave does NOT match
+//     const notMatchingLeaves = uniqueRecords
+//       .filter(attendance => {
+//         return !leaveData.some(leave => {
+//           return (
+//             leave.employeeId.toString() === attendance.EmployeeCode &&
+//             attendance.AttendanceDate >= leave.leaveStartDate &&
+//             attendance.AttendanceDate <= leave.leaveEndDate
+//           );
+//         });
+//       })
+//       .map(attendance => {
+//         const employeeData = employeeManagerMap.get(attendance.EmployeeCode.toString()) || {};
+//         return {
+//           ...attendance.toObject(),
+//           managerId: employeeData.managerId || null,
+//           workingDays: employeeData.workingDays || null
+//         };
+//       });
+//     // console.log(11, notMatchingLeaves) 
+
+//     // Filter based on working hours and manager availability
+//     const filteredLeaves = notMatchingLeaves.filter(attendance => {
+//       if (attendance.managerId === null) return false;
+
+//       // Check Duration
+//       if (attendance.Duration < 480) return true;
+
+//       // Parse InTime and compare
+//       if (attendance.InTime) {
+//         const inTimeStr = attendance.InTime.split(" ")[1]; // Get the time part
+//         return inTimeStr > "09:15:00"; // Compare string times directly
+//       }
+
+//       return false;
+//     });
+
+//     // Fetch holiday list
+//     const holidayList = await holidaysModel.find({}, { holidayDate: 1 });
+//     const holidayDates = new Set(holidayList.map(holiday => holiday.holidayDate));
+
+//     // Remove weekend and holiday attendance records
+//     const filteredData = filteredLeaves.filter(record => {
+//       const attendanceDate = new Date(record.AttendanceDate);
+//       const dayOfWeek = attendanceDate.getUTCDay();
+//       const formattedDate = attendanceDate.toISOString().split("T")[0];
+
+//       if (record.workingDays === "5" && (dayOfWeek === 0 || dayOfWeek === 6)) {
+//         return false;
+//       }
+//       if (record.workingDays === "6" && dayOfWeek === 0) {
+//         return false;
+//       }
+//       if (holidayDates.has(formattedDate)) {
+//         return false;
+//       }
+
+//       return true;
+//     });
+
+//     const getIndiaCurrentDateTime = () => {
+//       const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+//       const date = new Date(indiaTime);
+
+//       const pad = (n) => (n < 10 ? `0${n}` : n);
+
+//       const year = date.getFullYear();
+//       const month = pad(date.getMonth() + 1); // Months are 0-based
+//       const day = pad(date.getDate());
+//       const hours = pad(date.getHours());
+//       const minutes = pad(date.getMinutes());
+//       const seconds = pad(date.getSeconds());
+
+//       return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+//     };
+
+//     const dateTime = getIndiaCurrentDateTime()
+
+//     // Create uninformed leave records
+//     const leaveRecords = filteredData.map(attendance => {
+//       const attendanceDate = attendance.AttendanceDate.toISOString().split("T")[0];
+//       const totalDays =
+//         attendance.Duration < 240 ? "1" :
+//         attendance.Duration >= 240 && attendance.Duration < 480 ? "0.5" :
+//         attendance.InTime && attendance.InTime.split(" ")[1] > "09:15:00" ? "0.5" :
+//         "0";
+
+//       return {
+//         employeeId: attendance.EmployeeCode,
+//         leaveType: "uninformedLeave",
+//         leaveStartDate: attendanceDate,
+//         leaveEndDate: attendanceDate,
+//         totalDays,
+//         reason: "This is system-generated leave",
+//         approvedBy: attendance.managerId || "System",
+//         status: "Approved",
+//         dateTime,
+//         approvedDateTime: dateTime
+//       };
+//     });
+//     // console.log(11, leaveRecords)
+    
+//     // Insert into MongoDB
+//     if (leaveRecords.length > 0) {
+//       await leaveTakenHistoryModel.insertMany(leaveRecords);
+//     }
+    
+//     const updatedLeaves = await leaveTakenHistoryModel.find(
+//       {},
+//       { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 }
+//     );
+    
+//     const leaveMap = new Map();
+//     const uninformedLeaveMap = new Map();
+//     const leavesToDelete = [];
+    
+//     // Step 1: Store other leave types in a Map
+//     updatedLeaves.forEach(leave => {
+//       const key = `${leave.employeeId}`;
+    
+//       if (leave.leaveType !== "uninformedLeave") {
+//         if (!leaveMap.has(key)) leaveMap.set(key, []);
+//         leaveMap.get(key).push({
+//           startDate: new Date(leave.leaveStartDate),
+//           endDate: new Date(leave.leaveEndDate),
+//         });
+//       } else {
+//         // Collect uninformedLeave records separately
+//         if (!uninformedLeaveMap.has(key)) uninformedLeaveMap.set(key, []);
+//         uninformedLeaveMap.get(key).push({
+//           _id: leave._id,
+//           startDate: new Date(leave.leaveStartDate),
+//           endDate: new Date(leave.leaveEndDate),
+//         });
+//       }
+//     });
+    
+//     // Step 2: Identify uninformedLeave records to delete
+//     uninformedLeaveMap.forEach((uninformedLeaves, employeeId) => {
+//       const existingLeaves = leaveMap.get(employeeId) || [];
+    
+//       // Sort uninformedLeave records by date to handle duplicates
+//       uninformedLeaves.sort((a, b) => a.startDate - b.startDate);
+    
+//       const keptUninformedLeaves = [];
+    
+//       uninformedLeaves.forEach(leave => {
+//         const startDate = leave.startDate;
+//         const endDate = leave.endDate;
+    
+//         // Check if this uninformedLeave overlaps with an existing leave
+//         const hasOverlap = existingLeaves.some(el => startDate >= el.startDate && endDate <= el.endDate);
+    
+//         if (hasOverlap || keptUninformedLeaves.some(existing => existing.startDate.getTime() === startDate.getTime())) {
+//           // If it overlaps with another leave or is a duplicate uninformedLeave, mark for deletion
+//           leavesToDelete.push(leave._id);
+//         } else {
+//           // Otherwise, keep it as a valid uninformedLeave record
+//           keptUninformedLeaves.push(leave);
+//         }
+//       });
+//     });
+    
+//     // Step 3: Delete the identified uninformedLeave records
+//     if (leavesToDelete.length > 0) {
+//       await leaveTakenHistoryModel.deleteMany({ _id: { $in: leavesToDelete } });
+//       console.log(`Deleted ${leavesToDelete.length} uninformedLeave records.`);
+//     } else {
+//       console.log("No uninformedLeave records to delete.");
+//     }
+    
+
+//     return res.status(200).json({
+//       statusCode: 200,
+//       statusValue: "SUCCESS",
+//       message: "Attendance records processed successfully.",
+//       data: leaveRecords,
+//       // data2: updatedLeaves
+//     });
+//   } catch (err) {
+//     console.error("Error fetching attendance logs:", err);
+//     res.status(500).json({
+//       statusCode: 500,
+//       statusValue: "ERROR",
+//       message: "An error occurred while processing attendance logs.",
+//       error: err.message
+//     });
+//   }
+// };
+
+
 const generateUninformedLeave = async (req, res) => {
   try {
 
@@ -519,7 +769,7 @@ const generateUninformedLeave = async (req, res) => {
       AttendanceDate: 1, EmployeeCode: 1, Duration: 1, Status: 1, EmployeeId: 1
     });
 
-    // Remove duplicate attendance records
+    // Remove duplicate attendance records Absent
     const uniqueRecords = dataResult.reduce((acc, record) => {
       const uniqueKey = `${record.AttendanceDate.toISOString()}_${record.EmployeeCode}`;
       if (!acc.seen.has(uniqueKey)) {
@@ -575,6 +825,7 @@ const generateUninformedLeave = async (req, res) => {
           workingDays: employeeData.workingDays || null
         };
       });
+    // console.log(11, notMatchingLeaves) 
 
     // Filter based on working hours and manager availability
     const filteredLeaves = notMatchingLeaves.filter(attendance =>

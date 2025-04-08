@@ -452,6 +452,7 @@ const requestCompOff = async (req, res) => {
                 message: "Invalid token",
             });
         }
+      
         // check already applied for the same date
         const existingCompOff = await CompOff.findOne({
             employeeId: req.params.employeeId,
@@ -465,8 +466,16 @@ const requestCompOff = async (req, res) => {
                 statusValue: "error"
             });
         }
-
+        
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
+        if (!getUser || getUser.employmentType === "Contractual" || getUser.employmentType === "Contractual " || getUser.employmentType === " Contractual") {
+            return res.status(400).json({
+                message: "You can not able to apply comp-off request.",
+                statusCode: 400,
+                statusValue: "error"
+            });
+        }
+        
         // Get current date and time in IST
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
