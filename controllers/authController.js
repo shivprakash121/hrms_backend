@@ -11,6 +11,7 @@ const departmentModel = require("../models/departmentModel");
 const bcrypt = require('bcrypt');
 const leaveTakenHistoryModel = require("../models/leaveTakenHistoryModel");
 const {sendOtp} = require("../helper/sendOtp");
+const CompOff = require("../models/compOffHistoryModel");
 
 const registerEmployee = async (req, res) => {
     try {
@@ -484,9 +485,17 @@ const getEmpDetailsById = async (req, res) => {
                 message: "No employees found.",
             });
         }
-
-        const employee = await employeeModel.findOne({ employeeId: Number(employeeId) }, { __v: 0 })
-        if (employee) {
+        
+        const employeeDoc = await employeeModel.findOne({ employeeId: Number(employeeId) }, { __v: 0 })
+        if (employeeDoc) {
+            const compOffData = await CompOff.find({employeeId:req.params.employeeId, status:"Approved"})
+            const compOffSum = compOffData.reduce((acc, curr) => {
+                return { appliedCompOff: acc.appliedCompOff + parseFloat(curr.totalDays) }
+            }, {appliedCompOff: 0})
+            // Convert mongoose document to plain object
+            
+            const employee = employeeDoc.toObject();
+            employee.leaveBalance.appliedCompOff = compOffSum.appliedCompOff.toString();
             return res.status(200).json({
                 statusCode: 200,
                 statusValue: "SUCCESS",
@@ -501,7 +510,7 @@ const getEmpDetailsById = async (req, res) => {
             message: "Employee data not found.",
         });
     } catch (error) {
-        console.error(error);
+        // console.error(error);
         // Error response
         return res.status(500).json({
             statusCode: 500,

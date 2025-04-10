@@ -1130,6 +1130,78 @@ const mergeAttendance = async (req, res) => {
 //     console.log(`${msg} ${name}`);
 // })("shiv")
 
+// const fruits = ["apple", "banana", "apple", "orange", "banana", "apple"];
+
+// fruits.forEach((item, index, array) => {
+//     console.log(`${index}: ${item}`);
+// });
+
+
+// const nums = [10, 20, 30];
+// let sum = 0;
+
+// nums.forEach(num => {
+//     sum = sum+num;
+// })
+
+// console.log(sum)
+
+// const users = [
+//     { name: "Shiv", age: 25 },
+//     { name: "Amit", age: 30 },
+//     { name: "Pooja", age: 28 }
+// ];
+
+// const res = users.find(item => item.name == "Amit" && item.age > 25)
+// console.log(res);
+
+
+// Remove items with quantity 0
+
+// Find the most expensive item
+
+// Create a summary with total price and item count
+
+// const cart = [
+//     { name: "Laptop", price: 50000, quantity: 1 },
+//     { name: "Mouse", price: 500, quantity: 2 },
+//     { name: "Keyboard", price: 1000, quantity: 0 },
+//     { name: "Monitor", price: 12000, quantity: 1 }
+// ];
+
+// const validItems = cart.filter(item => item.quantity > 0)
+// // console.log(validItems)
+
+// const totalPrice = validItems.reduce((acc, curr) => {})
+
+// const fs = require('fs');
+// fs.readFile("file.txt", "utf8", (err, data) => {
+//     if(err) {
+//         console.error(err);
+//         return;
+//     }
+//     console.log(data);
+// })
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
