@@ -1183,10 +1183,21 @@ const mergeAttendance = async (req, res) => {
 //     console.log(data);
 // })
 
+// longest subsequence in an array 
+
+// timers in node js
+setTimeout(() => {
+    console.log("execute after 1 seconds");
+}, 1000)
 
 
+let count = 0;
 
-
+const intervalId = setInterval(() => {
+    count++;
+    console.log("repeating every seconds", count);
+    if (count === 31) clearInterval(intervalId);
+}, 1000)
 
 
 

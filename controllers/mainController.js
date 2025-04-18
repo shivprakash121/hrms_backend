@@ -499,7 +499,7 @@ const approvedPendingLeaves = async (req, res) => {
 
 const generateUninformedLeave = async (req, res) => {
   try {
-
+    
     // Extract query parameters
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : null;
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null;
@@ -528,7 +528,7 @@ const generateUninformedLeave = async (req, res) => {
       }
       return acc;
     }, { seen: new Set(), filtered: [] }).filtered;
-
+    
     if (uniqueRecords.length === 0) {
       return res.status(200).json({
         statusCode: 200,
@@ -582,7 +582,7 @@ const generateUninformedLeave = async (req, res) => {
       if (attendance.managerId === null) return false;
 
       // Check Duration
-      if (attendance.Duration < 480) return true;
+      if (attendance.Duration < 465) return true;
 
       // Parse InTime and compare
       if (attendance.InTime) {
@@ -639,7 +639,7 @@ const generateUninformedLeave = async (req, res) => {
       const attendanceDate = attendance.AttendanceDate.toISOString().split("T")[0];
       const totalDays =
         attendance.Duration < 240 ? "1" :
-        attendance.Duration >= 240 && attendance.Duration < 480 ? "0.5" :
+        attendance.Duration >= 240 && attendance.Duration < 465 ? "0.5" :
         attendance.InTime && attendance.InTime.split(" ")[1] > "09:30:00" ? "0.5" :
         "0";
 
@@ -1428,10 +1428,10 @@ const getAttendanceDaysByMonth = async (req, res) => {
     let employeeId = req.params.employeeId;
     // Define the mapping
     const employeeIdMapping = {
-        "2716": "CON004",
-        "2751": "CON020",
-        "2564": "CON006",
-        "2717": "CON005"
+        "27166": "CON004",
+        "27516": "CON020",
+        "25646": "CON006",
+        "27176": "CON005"
     };
 
     // Check if employeeId exists in the mapping and override it
@@ -1503,7 +1503,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
     
       if (isLate) {
         return "Half Day"; // Late overrides Full Day
-      } else if (totalMinutes >= 480) {
+      } else if (totalMinutes >= 465) {
         return "Full Day";
       } else if (totalMinutes >= 240) {
         return "Half Day";
