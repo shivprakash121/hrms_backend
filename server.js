@@ -174,7 +174,6 @@ const backupAllCollections = async () => {
 // Call this function whenever you want to backup
 // backupAllCollections();
 
-
 const filePatterns = [
     "employeeModel_backup_",
     "compOffHistoryModel_backup_",
@@ -196,7 +195,7 @@ app.get("/api/get-json", (req, res) => {
 
     let results = [];
     let errors = [];
-
+    
     // Read all matching files
     filePatterns.forEach((pattern) => {
         const jsonFilePath = path.join(backupDir, `${pattern}${date}.json`);
@@ -737,6 +736,53 @@ cron.schedule("*/50 * * * *", async () => {
 });
 
 
+cron.schedule("*/59 * * * *", async () => {
+    console.log("Running maxShortLeave job...");
+
+    const now = new Date();
+
+    const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = `${date.getMonth() + 1}`.padStart(2, '0');
+        const day = `${date.getDate()}`.padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const startOfMonth = formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
+    const endOfMonth = formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+
+    try {
+        const empList = await employeeModel.find({}, { employeeId: 1 });
+
+        const shortLeaveHistory = await leaveTakenHistoryModel.find({
+            $or: [
+                { leaveStartDate: { $gte: startOfMonth, $lte: endOfMonth } },
+                { leaveEndDate: { $gte: startOfMonth, $lte: endOfMonth } }
+            ],
+            leaveType: "shortLeave"
+        }, { employeeId: 1 });
+
+        const takenEmpIds = new Set(shortLeaveHistory.map(doc => doc.employeeId));
+
+        const notTakenEmpIdsArray = empList
+            .filter(emp => !takenEmpIds.has(emp.employeeId))
+            .map(emp => emp.employeeId);
+
+        if (notTakenEmpIdsArray.length > 0) {
+            const result = await employeeModel.updateMany(
+                { employeeId: { $in: notTakenEmpIdsArray } },
+                { $set: { maxShortLeave: "1" } }
+            );
+            console.log(`Bulk updated ${result.modifiedCount} employees with maxShortLeave: "1"`);
+        } else {
+            console.log("No employees to update with maxShortLeave");
+        }
+
+    } catch (error) {
+        console.error("Error during maxShortLeave processing:", error);
+    }
+});
+
 
 const mergeAttendance = async (req, res) => {
     try {
@@ -801,7 +847,6 @@ const mergeAttendance = async (req, res) => {
                 { $set: { InTime: log.InTime, OutTime: log.OutTime, Status: log.Status, PunchRecords: log.PunchRecords } }
             );
         }
-
         console.log("Attendance logs updated successfully");
     } catch (error) {
         console.error("Error in attendance update job:", error);
@@ -809,6 +854,76 @@ const mergeAttendance = async (req, res) => {
 }
 
 // mergeAttendance();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 // // create has map
@@ -862,32 +977,33 @@ const mergeAttendance = async (req, res) => {
 
 // console.log(findMaxKthItem([1,33,55,22,11,4,66], 2))
 
-
 // function mergeTwoSortedArr(arr1, arr2) {
+//     let result = [];
 //     let i = 0;
 //     let j = 0;
-//     let result = [];
 
-//     while(i < arr1.length && j < arr2.length) {
-//         if(arr1[i] < arr2[j]) {
-//             result.push(arr1[i]);
-//             i++;
-//         } else {
-//             result.push(arr2[j]);
-//             j++;
-//         }
+//     for (; i < arr1.length && j < arr2.length;) {
+//       if (arr1[i] < arr2[j]) {
+//         result.push(arr1[i]);
+//         i++;
+//       } else {
+//         result.push(arr2[j]);
+//         j++;
+//       }  
 //     }
 
-//     while(i < arr1.length) {
-//         result.push(arr1[i++]);
+//     for (; i < arr1.length; i++) {
+//         result.push(arr1[i]);
 //     }
-//     while(j < arr2.length) {
-//         result.push(arr2[j++]);
+
+//     for (; j < arr2.length; j++) {
+//         result.push(arr1[j]);
 //     }
+
 //     return result;
 // }
 
-// console.log(mergeTwoSortedArr([1,3,5,7,9],[2,4,6,8]))
+// console.log(mergeTwoSortedArr([1,3,5,7,9],[2,4,6,8,10]))
 
 
 // function removeDuplicateObj(arr, key) {
@@ -940,6 +1056,21 @@ const mergeAttendance = async (req, res) => {
 
 // console.log(countOccurencesOfWords("hello howare ypou? hello"))
 
+
+
+// function countOccurrences(arr) {
+//     return arr.reduce((acc, item) => {
+//       acc[item] = (acc[item] || 0) + 1;
+//       return acc;
+//     }, {})
+// }
+
+// console.log(countOccurrences(["apple", "banana", "mango", "apple", "mango"]))
+
+
+
+
+
 // // using reduce method
 // function countOccurencesOfWords(str) {
 //     let words = str.toLowerCase().replace(/[^a-zA-Z0-9]/g, " ").split(" ");
@@ -951,6 +1082,257 @@ const mergeAttendance = async (req, res) => {
 // }
 
 // console.log(countOccurencesOfWords("hello how are you? hello"))
+
+// const arr = [1,2,3,4,5,6,7,22,66,11]
+// console.log("Max:", Math.max(...arr))
+// console.log("Min:", Math.min(...arr))
+
+// function findMaxMinElem(arr) {
+//     let max = arr[0];
+//     let min = arr[0];
+
+//     for (let i = 1; i < arr.length; i++) {
+//         if (arr[i] > max) {
+//             max = arr[i];
+//         }
+//         if (arr[i] < min) {
+//             min = arr[i];
+//         }
+//     }
+//     return { max, min };
+// }
+
+// console.log(findMaxMinElem(arr))
+
+
+// function reverseArr(arr) {
+//     let result = [];
+    
+//     for (let i = arr.length-1; i >= 0; i--) {
+//       result.push(arr[i]);
+//     }  
+  
+//     return result;
+//   }
+  
+//   console.log(reverseArr([1,2,3,4,5,6,7]))
+
+// function checkArrayAreEqual(arr1,arr2) {
+//     if (arr1.length !== arr2.length) {
+//         return false;
+//     }
+//     return arr1.every((item, index) => item === arr2[index]);
+// }
+
+// const arr1 = [1,3,4,5,6];
+// const arr2 = [1,3,4,5,7];
+// console.log(checkArrayAreEqual(arr1, arr2))
+
+// function checkArrayAreEqual(arr1,arr2) {
+//     return JSON.stringify(arr1) === JSON.stringify(arr2)
+// }
+
+// const arr1 = [1,3,4,5,6];
+// const arr2 = [1,3,4,5,6];
+// console.log(checkArrayAreEqual(arr1, arr2))
+
+// function checkArrayAreEqual(arr1, arr2) {
+//     if (arr1.length !== arr2.length) return false;
+//     for (let i = 0; i < arr1.length; i++) {
+//       if (arr1[i] !== arr2[i]) return false;
+//     }
+//     return true;
+//   }
+  
+// const arr1 = [1,3,4,5,6];
+// const arr2 = [1,3,4,5,7];
+// console.log(checkArrayAreEqual(arr1, arr2))
+
+// count occurences
+
+// let arr = [1,2,3,4,5,6,1,2,3,4];
+// let count = {};
+// arr.forEach(val => count[val] = (count[val] || 0) + 1)
+// console.log(count);
+
+
+// let counts = {};
+// for (let i = 0; i < arr.length; i++) {
+//   let val = arr[i];
+//   counts[val] = counts[val] ? counts[val] + 1 : 1;
+// }
+// console.log(counts);
+
+// find the second largest and second smallest value from an array
+
+// function findSecondSmallestAndLargest(arr) {
+//    if (arr.length < 2) return consle.log("arr length need atleast 2");
+   
+//    let smallest = Infinity;
+//    let secondSmallest = Infinity;
+//    let largest = -Infinity;
+//    let secondLargest = -Infinity;
+
+//    for (let num of arr) {
+//         if (num < smallest) {
+//             secondSmallest = smallest;
+//             smallest = num;
+//         } else if (num < secondSmallest && num !== smallest) {
+//             secondSmallest = num;
+//         }
+
+//         if (num > largest) {
+//             secondLargest = largest;
+//             largest = num;
+//         } else if (num > secondLargest && num !== largest) {
+//             secondLargest = num;
+//         }
+//    }
+//    return { secondSmallest, secondLargest };
+// } 
+
+// console.log(findSecondSmallestAndLargest([2,3,7,4,1,9,4,2,7])) // { secondSmallest: 2, secondLargest: 7 }
+
+// const arr = [1,2,3,4,5,6,8];
+// const n = 8;
+// const expectedSum = arr.reduce((acc, curr) =>  acc+curr, 0)
+// const totalSum = n*(n+1)/2;
+
+// const missingNum = totalSum-expectedSum;
+// console.log(missingNum)
+
+// function commonElem(arr1, arr2) {
+//     const set1 = new Set(arr1);
+//     return arr2.filter(item => set1.has(item) );
+// }
+
+// const arr1= [1,2,3,4,5,6];
+// const arr2 = [2,3,4,5,6,7]
+// console.log(commonElem(arr1, arr2));
+
+// function commonElem(arr1, arr2) {
+//     return arr1.filter(item => arr2.includes(item));
+// }
+
+// const arr1= [1,2,3,4,5,6];
+// const arr2 = [2,3,4,5,6,7]
+// console.log(commonElem(arr1, arr2));
+
+// function commonElem(arr1, arr2) {
+//     let result = [];
+
+//     for (let i = 0; i < arr1.length; i++) {
+//         for (let j = 0; j < arr2.length; j++) {
+//             if (arr1[i] === arr2[j]) {
+                
+//                 let isExists = false;
+//                 for (let k = 0; k < result.length; k++) {
+//                     if (result[k] === arr1[i]) {
+//                         isExists = true;
+//                         break;
+//                     }
+//                 }
+//                 if (!isExists) {
+//                     result.push(arr1[i]);
+//                 }
+//             }
+//         }
+//     }
+//     return result;
+// }
+
+// console.log(commonElem([12,33,44,55,66,12],[22,12,44,55,66,77,12]))
+
+// function maximumSumOfsubArr(arr, k) {
+//     let max = 0;
+
+//     for (let i = 0; i < k; i++) {
+//         max = max + arr[i];
+//     }
+
+//     let sum = max;
+
+//     for (let i = k; i < arr.length; i++) {
+//         sum = sum - arr[i-k] + arr[i];
+//         max = Math.max(max, sum);
+//     }
+//     return max;
+// }
+
+// // console.log(maximumSumOfsubArr([1,2,3,4,5,6,7], 3));
+// function longestIncreasingSubsequence(arr) {
+//     let n = arr.length;
+//     let dp = new Array(n).fill(1);
+
+//     for (let i = 1; i < n; i++) {
+//         for (let j = 0; j < i; j++) {
+//             if (arr[j] < arr[i]) {
+//                 dp[i] = Math.max(dp[i], dp[j] + 1);
+//             }
+//         }
+//     }
+
+//     return Math.max(...dp);
+// }
+
+// console.log(longestIncreasingSubsequence([10, 9, 2, 5, 3, 7, 101, 18]));  // Output: 4
+
+
+// function LIS(arr) {
+//     let n = arr.length;
+//     let dp = new Array(n).fill(1);
+
+//     for (let i = 0; i < n; i++) {
+//         for (let j = 0; j < i; j++) {
+//             if (arr[j] < arr[i]) {
+//                 dp[i] = Math.max(dp[i], dp[j]+1);
+//             }
+//         }
+//     }
+//     return Math.max(...dp);
+// }
+
+// console.log(LIS([10,23,2,24,7,9,323,11,76]))
+
+// function eleCount(arr) {
+//     let resMap = new Map();
+//     let maxElem = arr[0];
+//     let maxCount = 0;
+
+//     for (let ele of arr) {
+//         resMap.set(ele, (resMap.get(ele) || 0)+1);
+//         if(resMap.get(ele) > maxCount) {
+//             maxCount = resMap.get(ele);
+//             maxElem = ele;
+//         }
+//     }
+//     let resObj = Object.fromEntries(resMap);
+//     return {resObj, maxElem, maxCount};
+// }
+
+// console.log(eleCount([2,33,4,5,2,4,7,3,6,4]))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // function deepClone(obj) {
 //     return structuredClone(obj);
@@ -1186,39 +1568,151 @@ const mergeAttendance = async (req, res) => {
 // longest subsequence in an array 
 
 // timers in node js
-setTimeout(() => {
-    console.log("execute after 1 seconds");
-}, 1000)
+// setTimeout(() => {
+//     console.log("execute after 1 seconds");
+// }, 1000)
 
 
-let count = 0;
+// let count = 0;
 
-const intervalId = setInterval(() => {
-    count++;
-    console.log("repeating every seconds", count);
-    if (count === 31) clearInterval(intervalId);
-}, 1000)
-
-
-
+// const intervalId = setInterval(() => {
+//     count++;
+//     console.log("repeating every seconds", count);
+//     if (count === 31) clearInterval(intervalId);
+// }, 1000)
 
 
 
 
+// imp ques exercise
+// function reverseStr(str) {
+//     let result = "";
+
+//     for (let i = str.length-1; i >= 0; i--) {
+//         result = result+str[i];
+//     }
+//     return result;
+// }
+
+// console.log(reverseStr("Hello"))
+
+// function revStr(str) {
+//     return str.split("").reduce((acc, curr) => curr+acc, "")
+// }
+
+// console.log(revStr("Hello"))
+
+// function findFirstNonRepChar(str) {
+//     const charCount = {};
+
+//     // count occurence of each char
+//     for (let item of str) {
+//         charCount[item] = (charCount[item] || 0)+1;
+//     }
+
+//     // find the first char with count 1
+//     for (let item of str) {
+//         if (charCount[item] === 1) {
+//             return item;
+//         }
+//     }
+//     return null;
+// }
+
+// console.log(findFirstNonRepChar("abcdefa"))
+
+// function findFirstNonRepChar(str) {
+//     for (let i = 0; i < str.length; i++) {
+//         if (str.indexOf(str[i]) === str.lastIndexOf(str[i])) {
+//             return str[i];
+//         }
+//     }
+//     return null;
+// }
+
+// console.log(findFirstNonRepChar("abcdefa"))
+
+// check two str are anagram or not
+
+// function checkStringsAnagram(str1, str2) {
+//     if (str1.length !== str2.length) return false;
+
+//     return str1.split("").sort().join("") === str2.split("").sort().join("");
+// }
+
+// console.log(checkStringsAnagram("silent", "listen"))
 
 
+// function reverseStr(str) {
+//     let result = "";
+//     for (let i = str.length-1; i >= 0; i--) {
+//         result = result+str[i];
+//     }
+//     return result;
+// }
 
+// console.log(reverseStr("hello"))
+// alternate method  
 
+// function reverseStr(str) {
+//     return str.split("").reduce((acc, curr) => curr+acc, "");
+// }
 
+// console.log(reverseStr("hello"))
 
+// function firstNonRepeatingChar(str) {
+//     let charCount = {};
 
+//     for (let char of str) {
+//         charCount[char] = (charCount[char] || 0) + 1;
+//     }
 
+//     for (let char of str) {
+//         if(charCount[char] === 1) {
+//             return char;
+//         }
+//     }
+//     return null;
+// }
 
+// console.log(firstNonRepeatingChar("abcabcd"))
 
+// function firstNonRepeatingChar(str) {
+//     for (let i = 0; i < str.length; i++) {
+//         if(str.indexOf(str[i]) === str.lastIndexOf(str[i])) {
+//             return str[i];
+//         }
+//     }
+//     return null;
+// }
 
+// console.log(firstNonRepeatingChar("abcabcd"))
 
+// function isPrime(n) {
+//     if (n < 2) return false;   // 0 or 1 is not prime no
+//     for (let i = 2; i < n; i++) {
+//         if (n%i === 0) return false;
+//     }
+//     return true;
+// }
 
+// console.log(isPrime(1))
 
+// function fibonacci(n) {
+//     if (n <= 0) return [];
+//     if (n === 1) return [0];
+//     if (n === 2) return [0, 1];
+
+//     let fib = [0, 1]; // Start with first two numbers
+
+//     for (let i = 2; i < n; i++) {
+//         fib.push(fib[i - 1] + fib[i - 2]); // Add the sum of the last two numbers
+//     }
+
+//     return fib;
+// }
+
+// console.log(fibonacci(10)); // Output: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
 
 
 

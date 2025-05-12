@@ -6,7 +6,6 @@ const mongoSanitize = require("express-mongo-sanitize");
 const authController = require("../controllers/authController");
 const authMiddleware = require('../middlewares/authMiddleware');
 
-
 const authLimiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 minutes window
     max: 50, // Allow only 5 requests per window per IP

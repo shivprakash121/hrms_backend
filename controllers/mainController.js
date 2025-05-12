@@ -368,25 +368,27 @@ const getAllAttendanceLogs = async (req, res) => {
 
 const approvedPendingLeaves = async (req, res) => {
   try {
-    // Get the current year and month
+    const { monthStart, monthEnd } = req.query;
+
+    // Ensure default values if query params are missing
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
-    const currentMonth = String(currentDate.getMonth() + 1).padStart(2, "0"); // Ensure 2-digit format
+    const currentMonth = String(currentDate.getMonth() + 1).padStart(2, "0");
 
-    // Construct date range for the current month
-    const monthStart = `${currentYear}-${currentMonth}-01`;
-    const monthEnd = `${currentYear}-${currentMonth}-31`; // Covers all possible days
-
-    // Fetch pending leave requests within the current month
+    // Default to the current month's start and end if query params are not provided
+    const startDate = monthStart || `${currentYear}-${currentMonth}-01`;
+    const endDate = monthEnd || `${currentYear}-${currentMonth}-31`;
+    
+    // Fetch pending leave requests within the given range
     const pendingLeaves = await leaveTakenHistoryModel.find(
       {
         status: "Pending",
-        leaveStartDate: { $gte: monthStart, $lte: monthEnd },
-        leaveEndDate: { $gte: monthStart, $lte: monthEnd },
+        leaveStartDate: { $gte: startDate, $lte: endDate },
+        leaveEndDate: { $gte: startDate, $lte: endDate },
       },
       { employeeId: 1, leaveType: 1, totalDays: 1, leaveStartDate: 1, leaveEndDate: 1 }
     );
-
+    
     if (!pendingLeaves.length) {
       return res.status(200).json({
         statusCode: 200,
@@ -394,7 +396,7 @@ const approvedPendingLeaves = async (req, res) => {
         message: "No pending leaves found for the current month.",
       });
     }
-
+    
     let approvedLeaves = [];
     let insufficientBalanceLeaves = [];
     // Get the current time in IST
@@ -582,12 +584,12 @@ const generateUninformedLeave = async (req, res) => {
       if (attendance.managerId === null) return false;
 
       // Check Duration
-      if (attendance.Duration < 465) return true;
+      if (attendance.Duration < 510) return true;
 
       // Parse InTime and compare
       if (attendance.InTime) {
         const inTimeStr = attendance.InTime.split(" ")[1]; // Get the time part
-        return inTimeStr > "09:30:00"; // Compare string times directly
+        return inTimeStr > "09:15:00"; // Compare string times directly
       }
 
       return false;
@@ -638,9 +640,9 @@ const generateUninformedLeave = async (req, res) => {
     const leaveRecords = filteredData.map(attendance => {
       const attendanceDate = attendance.AttendanceDate.toISOString().split("T")[0];
       const totalDays =
-        attendance.Duration < 240 ? "1" :
-        attendance.Duration >= 240 && attendance.Duration < 465 ? "0.5" :
-        attendance.InTime && attendance.InTime.split(" ")[1] > "09:30:00" ? "0.5" :
+        attendance.Duration < 270 ? "1" :
+        attendance.Duration >= 270 && attendance.Duration < 510 ? "0.5" :
+        attendance.InTime && attendance.InTime.split(" ")[1] > "09:15:00" ? "0.5" :
         "0";
 
       return {
@@ -1491,7 +1493,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
       const minutes = durationInMinutes % 60;
       const totalMinutes = hours * 60 + minutes;
     
-      const timeThreshold = "09:30:00";
+      const timeThreshold = "09:18:00";
       let isLate = false;
     
       if (inTimeStr && inTimeStr.includes(" ")) {
@@ -1503,9 +1505,9 @@ const getAttendanceDaysByMonth = async (req, res) => {
     
       if (isLate) {
         return "Half Day"; // Late overrides Full Day
-      } else if (totalMinutes >= 465) {
+      } else if (totalMinutes >= 510) {
         return "Full Day";
-      } else if (totalMinutes >= 240) {
+      } else if (totalMinutes >= 270) {
         return "Half Day";
       } else {
         return "Absent";
@@ -1841,7 +1843,7 @@ const createAttendanceLogForOutDuty = async (req, res) => {
               message: "Attendance log already exists for today"
           });
       }
-
+      
       // Create a new attendance log
       const newLog = new attendanceLogModelForOutDuty({
           employeeId,

@@ -305,15 +305,16 @@ const updateEmployeeById = async (req, res) => {
     }
 };
 
+
 const getEmployeeListByManagerId = async (req, res) => {
     try {
+        
         // Extract pagination parameters from the request query
         const { page = 1, limit = 50 } = req.query;
-
         // Ensure `page` and `limit` are integers
         const pageNumber = parseInt(page, 10);
         const limitNumber = parseInt(limit, 10);
-
+        
         const token = req.headers.authorization?.split(" ")[1];
         if (!token) {
             return res.status(400).json({
@@ -332,9 +333,9 @@ const getEmployeeListByManagerId = async (req, res) => {
                 message: "Invalid token",
             });
         }
-        if (decoded.role === "Super-Admin") {
+        if (decoded.role === "Super-Admin" || decoded.role === "HR-Admin") {
             // Calculate the total number of employees
-            const totalCount = await employeeModel.countDocuments({managerId:decoded.employeeId});
+            const totalCount = await employeeModel.countDocuments({});
 
             if (totalCount === 0) {
                 return res.status(404).json({
@@ -349,7 +350,7 @@ const getEmployeeListByManagerId = async (req, res) => {
 
             // Retrieve paginated employee records
             const employees = await employeeModel
-                .find({managerId:decoded.employeeId})
+                .find({})
                 .skip((pageNumber - 1) * limitNumber)
                 .limit(limitNumber);
 
