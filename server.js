@@ -231,7 +231,6 @@ app.get("/api/get-json", (req, res) => {
 });
 
 
-
 // startUpdateAttendanceCronJob();
 startRemoveAttendanceDuplicateRecords();
 
@@ -736,24 +735,24 @@ cron.schedule("*/50 * * * *", async () => {
 });
 
 
-cron.schedule("*/59 * * * *", async () => {
+cron.schedule("*/30 * * * *", async () => {
     console.log("Running maxShortLeave job...");
-
+    
     const now = new Date();
-
+    
     const formatDate = (date) => {
         const year = date.getFullYear();
         const month = `${date.getMonth() + 1}`.padStart(2, '0');
         const day = `${date.getDate()}`.padStart(2, '0');
         return `${year}-${month}-${day}`;
     };
-
+    
     const startOfMonth = formatDate(new Date(now.getFullYear(), now.getMonth(), 1));
     const endOfMonth = formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0));
-
+    
     try {
         const empList = await employeeModel.find({}, { employeeId: 1 });
-
+        
         const shortLeaveHistory = await leaveTakenHistoryModel.find({
             $or: [
                 { leaveStartDate: { $gte: startOfMonth, $lte: endOfMonth } },
@@ -761,13 +760,13 @@ cron.schedule("*/59 * * * *", async () => {
             ],
             leaveType: "shortLeave"
         }, { employeeId: 1 });
-
+        
         const takenEmpIds = new Set(shortLeaveHistory.map(doc => doc.employeeId));
 
         const notTakenEmpIdsArray = empList
             .filter(emp => !takenEmpIds.has(emp.employeeId))
             .map(emp => emp.employeeId);
-
+        
         if (notTakenEmpIdsArray.length > 0) {
             const result = await employeeModel.updateMany(
                 { employeeId: { $in: notTakenEmpIdsArray } },
@@ -777,11 +776,89 @@ cron.schedule("*/59 * * * *", async () => {
         } else {
             console.log("No employees to update with maxShortLeave");
         }
-
+        
     } catch (error) {
         console.error("Error during maxShortLeave processing:", error);
     }
 });
+
+
+cron.schedule("*/30 * * * *", async () => {
+    console.log("Running maxRegularization job...");
+    
+    const now = new Date();
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    try {
+        // Step 1: Get all employees
+        const empList = await employeeModel.find({}, { employeeId: 1 });
+
+        // Step 2: Aggregate leave count for each employee (convert string to date if needed)
+        const leaveCounts = await leaveTakenHistoryModel.aggregate([
+            {
+                $addFields: {
+                    leaveStartDate: { $toDate: "$leaveStartDate" },
+                    leaveEndDate: { $toDate: "$leaveEndDate" }
+                }
+            },
+            {
+                $match: {
+                    leaveType: "regularized",
+                    leaveStartDate: { $lte: endOfMonth },
+                    leaveEndDate: { $gte: startOfMonth }
+                }
+            },
+            {
+                $group: {
+                    _id: "$employeeId",
+                    count: { $sum: 1 }
+                }
+            }
+        ]);
+
+        // Step 3: Map employeeId to count
+        const empLeaveMap = new Map();
+        leaveCounts.forEach(doc => {
+            empLeaveMap.set(doc._id, doc.count);
+        });
+
+        // Step 4: Create bulk update operations
+        const bulkOps = empList.map(emp => {
+            const count = empLeaveMap.get(emp.employeeId) || 0;
+            let maxRegularization = 0;
+
+            if (count === 0) {
+                maxRegularization = 2;
+            } else if (count === 1) {
+                maxRegularization = 1;
+            } else {
+                maxRegularization = 0;
+            }
+
+            return {
+                updateOne: {
+                    filter: { employeeId: emp.employeeId },
+                    update: { $set: { maxRegularization } }
+                }
+            };
+        });
+
+        // Step 5: Execute bulk update
+        if (bulkOps.length > 0) {
+            const result = await employeeModel.bulkWrite(bulkOps);
+            console.log(`Updated ${result.modifiedCount} employees with maxRegularization`);
+        } else {
+            console.log("No updates needed");
+        }
+
+    } catch (error) {
+        console.error("Error during maxRegularization job:", error);
+    }
+});
+
+
 
 
 const mergeAttendance = async (req, res) => {
@@ -1715,6 +1792,153 @@ const mergeAttendance = async (req, res) => {
 // console.log(fibonacci(10)); // Output: [0, 1, 1, 2, 3, 5, 8, 13, 21, 34]
 
 
+// function findPairsSumOfTarget(arr, target) {
+//     let result = [];
+
+//     for (let i = 0; i < arr.length; i++) {
+//         for (let j = i+1; j < arr.length; j++) {
+//             if (arr[i]+arr[j] === target) {
+//                 result.push([arr[i], arr[j]]);
+//             }
+//         }
+//     }
+//     return result;
+// }
+
+// console.log(findPairsSumOfTarget([1,2,3,4,5,6,7,8,4,2], 8))
+
+
+// function findPairsSumOfTarget(arr, target) {
+//    let seen = new Set();
+//    let result = [];
+
+//    for (let num of arr) {
+//     let complement = target - num;
+//     if (seen.has(complement)) {
+//         result.push([complement, num]);
+//     }
+//     seen.add(num);
+//    }
+//    return result;
+// }
+
+// console.log(findPairsSumOfTarget([1,2,3,4,5,6,7,8,4,2], 8))
+ 
+// function checkTriangleType(a,b,c) {
+//     if (a === b && b === c) {
+//         return "Equilateral triangle";
+//     } else if (a === b || b === c || a === c) {
+//         return "Isosceles triangle";
+//     } else {
+//         return "Scalene triangle";
+//     }
+// }
+
+// console.log(checkTriangleType(2,3,4))
+
+// function longestCommonPrefix(arr) {
+//     if (arr.length < 1) return "";
+
+//     let prefix = arr[0];
+
+//     for (let i = 1; i < arr.length; i++) {
+//        while (arr[i].indexOf(prefix) !== 0) {
+//             prefix = prefix.slice(0, -1);
+            
+//             if (prefix === "") return "";
+//        }
+//     }
+//     return prefix;
+// }
+
+// console.log(longestCommonPrefix(["hello","hel","helius"]))
+
+// function checkPrimeNum(n) {
+//     if (n < 2) return false;
+
+//     for (let i = 2; i < n; i++) {
+//         if (n%i === 0) return false;
+//     }
+//     return true;
+// }
+
+// console.log(checkPrimeNum(5))
+
+// function generateFibonacci(n) {
+//     if (n <= 0) return [];
+//     if (n === 1) return [0];
+//     if (n === 2) return [0,1];
+
+//     let fib = [0,1];  // start with first two num
+//     for (let i = 2; i < n; i++) {
+//        fib.push(fib[i-1]+fib[i-2]);              
+//     }
+//     return fib;
+// }
+
+// console.log(generateFibonacci(5))
+
+// function isPowerOfTwo(n) {
+//     if (n < 1) return false;
+
+//     while (n%2 === 0) {
+//         n = n/2;
+//     }
+//     return n === 1;
+// }
+
+// console.log(isPowerOfTwo(4));
+
+// function removeDuplicateElem(arr) {
+//     return [...new Set(arr)];
+// }
+
+// console.log(removeDuplicateElem([2,3,4,2,3,4,5,6]))
+
+// function removeDuplicateElem(arr) {
+//     return arr.filter((value, index) => arr.indexOf(value) === index);
+// }
+
+// console.log(removeDuplicateElem([2,3,4,2,3,4,5,6]))
+
+// function removeDuplicateElem(arr) {
+//     return arr.reduce((accArr, curr) => {
+//         if (!accArr.includes(curr)) {
+//             accArr.push(curr);
+//         }
+//         return accArr;
+//     }, [])
+// }
+
+// console.log(removeDuplicateElem([2,3,4,2,3,4,5,6]))
+
+// function removeDuplicateElem(arr) {
+//     let result = [];
+
+//     for (let i = 0; i < arr.length; i++) {
+//         let isDuplicate = false;
+//         for (let j = 0; j < result.length; j++) {
+//             if (arr[i] === result[j]) {
+//                 isDuplicate = true;
+//                 break;
+//             }
+//         }
+//         if (!isDuplicate) {
+//             result.push(arr[i]);
+//         }
+//     }
+//     return result;
+// }
+
+
+// console.log(removeDuplicateElem([2,3,4,2,3,4,5,6]))
+// O(n^2)  because of nested loop
+
+
+
+
+
+
 
 
 
@@ -1722,3 +1946,20 @@ app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Swagger API Docs available at http://localhost:${PORT}/api-docs`);
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -406,7 +406,7 @@ const approvedPendingLeaves = async (req, res) => {
       const date = new Date(indiaTime);
 
       const pad = (n) => (n < 10 ? `0${n}` : n);
-
+      
       const year = date.getFullYear();
       const month = pad(date.getMonth() + 1); // Months are 0-based
       const day = pad(date.getDate());
@@ -416,10 +416,9 @@ const approvedPendingLeaves = async (req, res) => {
 
       return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     };
-
+    
     const dateTime = getIndiaCurrentDateTime()
-
-
+        
     for (const leave of pendingLeaves) {
       const { employeeId, leaveType, totalDays } = leave;
 
@@ -430,7 +429,7 @@ const approvedPendingLeaves = async (req, res) => {
         console.log(`Employee ${employeeId} not found.`);
         continue;
       }
-
+      
       // Get current leave balance for the leaveType
       let availableLeaveBal = parseFloat(employee.leaveBalance[leaveType] || "0");
       let deductedDays = parseFloat(totalDays);

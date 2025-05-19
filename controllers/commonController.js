@@ -131,7 +131,7 @@ const updateEventById = async (req, res) => {
                 message: "Validation Error! Event ID is required.",
             });
         }
-
+        
         // Joi Schema for request validation
         const schema = Joi.object({
             title: Joi.string().optional(),
