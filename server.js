@@ -110,10 +110,10 @@ const backupCollectionToJson = async (Model, fileName) => {
             console.log(`No data to back up for ${fileName}`);
             return;
         }
-
+        
         const backupFilePath = path.join(BACKUP_DIR, `${fileName}_${moment().format("YYYY-MM-DD")}.json`);
         fs.writeFileSync(backupFilePath, JSON.stringify(data, null, 2));
-
+        
         console.log(`Backup successful: ${backupFilePath}`);
     } catch (error) {
         console.error(`Error backing up ${fileName}:`, error);
@@ -130,7 +130,7 @@ const deleteOldBackups = () => {
         const match = file.match(/\d{4}-\d{2}-\d{2}/);
         if (match) {
             const fileDate = moment(match[0], "YYYY-MM-DD");
-            const sevenDaysAgo = moment().subtract(10, "days");
+            const sevenDaysAgo = moment().subtract(7, "days");
 
             if (fileDate.isBefore(sevenDaysAgo)) {
                 const filePath = path.join(BACKUP_DIR, file);
@@ -191,11 +191,11 @@ app.get("/api/get-json", (req, res) => {
             statusCode: 400,
             statusValue: "error"
         });
-    }
-
+    } 
+    
     let results = [];
     let errors = [];
-    
+                                                                                                
     // Read all matching files
     filePatterns.forEach((pattern) => {
         const jsonFilePath = path.join(backupDir, `${pattern}${date}.json`);
@@ -220,7 +220,7 @@ app.get("/api/get-json", (req, res) => {
             });
         }
     });
-
+    
     res.status(200).json({
         message: "JSON data fetched successfully",
         statusCode: 200,
@@ -663,7 +663,7 @@ cron.schedule("*/45 * * * *", async () => {
     }
 });
 
-cron.schedule("*/10 * * * *", async () => {
+cron.schedule("*/15 * * * *", async () => {
     console.log("Running EmployeeCode update job...");
 
     try {
@@ -683,6 +683,58 @@ cron.schedule("*/10 * * * *", async () => {
         console.error("Error in EmployeeCode update job:", error);
     }
 });
+
+
+cron.schedule("*/59 * * * *", async () => {
+  console.log("Running Remove Duplicate PunchRecords from Attendance Records...");
+
+  try {
+    const today = new Date();
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const attendanceData = await AttendanceLogModel.find(
+      {
+        AttendanceDate: {
+          $gte: startOfMonth,
+          $lte: endOfMonth,
+        },
+        // EmployeeCode:"415"
+      },
+      {
+        _id: 1,
+        AttendanceDate: 1,
+        InTime: 1,
+        PunchRecords: 1,
+      }
+    );
+    
+    for (const record of attendanceData) {
+      if (record.PunchRecords && record.PunchRecords.trim() !== "") {
+        const punches = record.PunchRecords
+          .split(",")
+          .filter((p) => p.trim() !== "");
+
+        const uniquePunches = [...new Set(punches)];
+        
+        const cleanedPunchRecords = uniquePunches.join(",") + (uniquePunches.length ? "," : "");
+
+        // Update the document only if it has changed
+        if (cleanedPunchRecords !== record.PunchRecords) {
+          await AttendanceLogModel.updateOne(
+            { _id: record._id },
+            { $set: { PunchRecords: cleanedPunchRecords } }
+          );
+          console.log(`Updated record _id: ${record._id}`);
+        }
+      }
+    }
+    console.log("EmployeeCode update job completed.");
+  } catch (error) {
+    console.error("Error in EmployeeCode update job:", error);
+  }
+});
+
 
 // const updateHolidayStatus = async () => {
 //     try {
@@ -1933,6 +1985,43 @@ const mergeAttendance = async (req, res) => {
 
 // console.log(removeDuplicateElem([2,3,4,2,3,4,5,6]))
 // O(n^2)  because of nested loop
+
+
+// function removeDuplicateElem(arr) {
+//   let uniqueElements = {};
+//   let result = [];
+  
+//   for (let i = 0; i < arr.length; i++) {
+//     if (!uniqueElements[arr[i]]) {
+//         uniqueElements[arr[i]] = true;
+//         result.push(arr[i]);
+//     }
+//   }
+//   return result;
+// }
+
+// console.log(removeDuplicateElem([2,3,4,2,3,4,5,6]))
+
+// function findMissingNum(arr) {
+//     let n = arr.length+1;
+//     let expectedSum = (n*(n+1))/2;
+//     let actualSum = 0;
+
+//     for (let i = 0; i < arr.length; i++) {
+//         actualSum = actualSum+arr[i];
+//     }
+//     return expectedSum-actualSum;
+// }
+
+// console.log(findMissingNum([1,2,4,5,6,7,8,9]))
+// O(n)  linear complexity
+
+
+
+
+
+
+
 
 
 

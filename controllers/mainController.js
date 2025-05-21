@@ -9,6 +9,7 @@ const employeeModel = require("../models/employeeModel");
 const { DateTime } = require("mssql");
 const moment = require("moment-timezone");
 const attendanceLogModelForOutDuty = require("../models/attendanceLogModelForOutDuty");
+const employeeSalaryModel = require("../models/employeeSalaryModel");
 // // Get all tables in the database
 // const getTables = async (req, res) => {
 //   try {
@@ -1986,6 +1987,102 @@ const getAttendanceLogForOutDutyById = async (req, res) => {
 };
 
 
+const createEmployeeSalary = async (req, res) => {
+  try {
+    const {
+      employeeName,
+      employeeId,
+      employeeCode,
+      deptName,
+      month,
+      EL,
+      CL,
+      ML,
+      D_EL,
+      D_CL,
+      D_ML,
+      regularisation,
+      shortLeave,
+      halfDay,
+      absent,
+      workedDays,
+      SD,
+    } = req.body;
+
+    // Validate required fields
+    if (!employeeName || !deptName || !month) {
+      return res.status(400).json({
+        message: "employeeName, deptName, and month are required",
+        statusCode: 400,
+        statusValue: "error",
+      });
+    }
+    
+    // Create new employee salary record
+    const newSalary = await employeeSalaryModel.create({
+      employeeName,
+      employeeId: employeeId || "",
+      employeeCode: employeeCode || "",
+      deptName,
+      month,
+      EL: EL || 0.0,
+      CL: CL || 0.0,
+      ML: ML || 0.0,
+      D_EL: D_EL || 0.0,
+      D_CL: D_CL || 0.0,
+      D_ML: D_ML || 0.0,
+      regularisation: regularisation || 0.0,
+      shortLeave: shortLeave || 0.0,
+      halfDay: halfDay || 0.0,
+      absent: absent || 0.0,
+      workedDays: workedDays || 0.0,
+      SD: SD || 0.0
+    });
+
+    return res.status(201).json({
+      message: "Employee salary record created successfully",
+      statusCode: 201,
+      statusValue: "success",
+      data: newSalary,
+    });
+  } catch (error) {
+    console.error("Error creating employee salary record:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      statusCode: 500,
+      statusValue: "error",
+    });
+  }
+};
+
+
+const getAllEmployeeSalaries = async (req, res) => {
+  try {
+    const salaryRecords = await employeeSalaryModel.find().sort({ createdAt: -1 });
+    return res.status(200).json({
+      message: "All employee salary records fetched successfully",
+      statusCode: 200,
+      statusValue: "success",
+      data: salaryRecords,
+    });
+  } catch (error) {
+    console.error("Error fetching salary records:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      statusCode: 500,
+      statusValue: "error",
+    });
+  }
+};
+
+
+
+
+
+
+
+
+
 
 module.exports = {
   createAttendanceLogForOutDuty,
@@ -1999,5 +2096,7 @@ module.exports = {
   startRemoveAttendanceDuplicateRecords,
   getAttendanceLogsTodays,
   generateUninformedLeave,
-  approvedPendingLeaves
+  approvedPendingLeaves,
+  createEmployeeSalary,
+  getAllEmployeeSalaries
 };

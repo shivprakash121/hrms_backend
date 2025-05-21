@@ -11,7 +11,9 @@ const {
     approvedPendingLeaves,
     createAttendanceLogForOutDuty,
     getAttendanceLogForOutDutyById,
-    punchOutForOutDuty
+    punchOutForOutDuty,
+    createEmployeeSalary,
+    getAllEmployeeSalaries
 } = require('../controllers/mainController');
 
 const router = express.Router();
@@ -49,6 +51,9 @@ router.post('/punch-in', createAttendanceLogForOutDuty);
 router.post('/punch-out/:id', punchOutForOutDuty);
 router.get('/get-log-records/:employeeId', getAttendanceLogForOutDutyById);
 
+
+router.post('/save-salary-data', createEmployeeSalary);
+router.get('/all-employee-salary-data', getAllEmployeeSalaries);
 
 // router.get('/punchTime',getPunchTimeDetails);  // temp-used
 

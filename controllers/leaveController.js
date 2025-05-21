@@ -637,10 +637,10 @@ const actionCompOff = async (req, res) => {
                 [
                     {
                         $set: {
-                            "leaveBalance.earnedLeave": {
+                            "leaveBalance.compOffLeave": {
                                 $toString: {
                                     $add: [
-                                        { $toInt: "$leaveBalance.earnedLeave" },
+                                        { $toInt: "$leaveBalance.compOffLeave" },
                                         totalDays, // Add totalDays to earnedLeave balance
                                     ],
                                 },

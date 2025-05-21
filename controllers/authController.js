@@ -239,7 +239,6 @@ const logout = async (req, res) => {
 };
 
 
-
 const updateEmployeeById = async (req, res) => {
     try {
         const { employeeId } = req.params;
@@ -254,7 +253,7 @@ const updateEmployeeById = async (req, res) => {
                 message: "Employee ID is required",
             });
         }
-
+        
         // Restricted fields that should NOT be updated
         const restrictedFields = ["email", "employeeId", "loginPassword"];
         restrictedFields.forEach((field) => delete updateData[field]);
@@ -347,7 +346,7 @@ const getEmployeeListByManagerId = async (req, res) => {
              
             // Calculate total pages
             const totalPages = Math.ceil(totalCount / limitNumber);
-
+             
             // Retrieve paginated employee records
             const employees = await employeeModel
                 .find({})
