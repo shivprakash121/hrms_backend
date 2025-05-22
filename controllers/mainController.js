@@ -2014,8 +2014,22 @@ const createEmployeeSalary = async (req, res) => {
       return res.status(400).json({
         message: "employeeName, deptName, and month are required",
         statusCode: 400,
-        statusValue: "error",
+        statusValue: "FAIL",
       });
+    }
+    
+    // check already exists employee salary for the same month
+    const isAlreadyExists = await employeeSalaryModel.findOne({
+      employeeCode,
+      month
+    })
+    
+    if (isAlreadyExists) {
+      return res.status(400).json({
+        message: "Salary record for this employee and month already exists",
+        statusCode: 400,
+        statusValue: "FAIL",
+      })
     }
     
     // Create new employee salary record
@@ -2042,7 +2056,7 @@ const createEmployeeSalary = async (req, res) => {
     return res.status(201).json({
       message: "Employee salary record created successfully",
       statusCode: 201,
-      statusValue: "success",
+      statusValue: "SUCCESS",
       data: newSalary,
     });
   } catch (error) {

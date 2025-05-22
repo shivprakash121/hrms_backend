@@ -199,7 +199,7 @@ app.get("/api/get-json", (req, res) => {
     // Read all matching files
     filePatterns.forEach((pattern) => {
         const jsonFilePath = path.join(backupDir, `${pattern}${date}.json`);
-
+        
         if (fs.existsSync(jsonFilePath)) {
             try {
                 const data = fs.readFileSync(jsonFilePath, "utf8");
@@ -2016,18 +2016,53 @@ const mergeAttendance = async (req, res) => {
 // console.log(findMissingNum([1,2,4,5,6,7,8,9]))
 // O(n)  linear complexity
 
+// function flattenArrayElem(arr) {
+//     let result = [];
+
+//     for (let i = 0; i < arr.length; i++) {
+//         if (Array.isArray(arr[i])) {
+//             result = result.concat(flattenArrayElem(arr[i]));
+//         } else {
+//             result.push(arr[i]);
+//         }
+//     }
+//     return result;
+// }
 
 
+// console.log(flattenArrayElem([1,[2,3,4],[4,6,[5]]]))
+// O(n)
 
+// function flattenArrayElem(arr) {
+//    return arr.flat(Infinity);
+// }
 
+// console.log(flattenArrayElem([1,[2,3,4],[4,6,[5]]]))
 
+// function rotateElem(arr, k) {
+//     let n = arr.length;
+//     k = k%n;  // handle cases when k>n
 
+//     function reverse(start, end) {
+//         while (start < end) {
+//             [arr[start], arr[end]] = [arr[end], arr[start]];
+//             start++;
+//             end--;
+//         }
+//     }
+//     reverse(0, n-1);
+//     reverse(0, k-1);
+//     reverse(k, n-1);
 
+//     return arr;
+// }
+// console.log(rotateElem([1,2,3,4,5], 3))
 
+// function findCommonElem(arr1, arr2) {
+//     return arr1.filter(num => arr2.includes(num));
+// }
 
-
-
-
+// console.log(findCommonElem([1,2,3,4,5,6],[2,3,4,5,6,7]));
 
 
 
