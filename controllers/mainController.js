@@ -10,6 +10,8 @@ const { DateTime } = require("mssql");
 const moment = require("moment-timezone");
 const attendanceLogModelForOutDuty = require("../models/attendanceLogModelForOutDuty");
 const employeeSalaryModel = require("../models/employeeSalaryModel");
+const jwt = require("jsonwebtoken");
+
 // // Get all tables in the database
 // const getTables = async (req, res) => {
 //   try {
@@ -100,7 +102,7 @@ const employeeSalaryModel = require("../models/employeeSalaryModel");
 //     // Extract EmployeeId, page, and limit from query parameters
 //     const page = parseInt(req.query.page) || 1;
 //     const limit = parseInt(req.query.limit) || 10;
-    
+
 //     const offset = (page - 1) * limit;
 //     let query = `
 //       SELECT 
@@ -301,10 +303,10 @@ const getAllAttendanceLogs = async (req, res) => {
         acc.filtered.push(record);
       }
       return acc;
-    }, { seen: new Set(), filtered: [] }).filtered;  
+    }, { seen: new Set(), filtered: [] }).filtered;
 
     // get leave history
-    const leaveData = await leaveTakenHistoryModel.find({status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1})
+    const leaveData = await leaveTakenHistoryModel.find({ status: "Approved" }, { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 })
     // console.log(11, leaveData)
     const finalResult = uniqueRecords.map(attendance => {
       const attendanceObj = attendance.toObject();
@@ -321,7 +323,7 @@ const getAllAttendanceLogs = async (req, res) => {
       if (matchingLeave) {
         return {
           ...attendanceObj,
-          isLeaveTaken:true,
+          isLeaveTaken: true,
           leaveType: matchingLeave.leaveType
         };
       }
@@ -331,7 +333,7 @@ const getAllAttendanceLogs = async (req, res) => {
         leaveType: ""
       };
     });
-    
+
     // console.log(11, finalResult)
     // Get the total count of records for pagination metadata
     const totalRecords = await AttendanceLogModel.countDocuments(filter);
@@ -379,7 +381,7 @@ const approvedPendingLeaves = async (req, res) => {
     // Default to the current month's start and end if query params are not provided
     const startDate = monthStart || `${currentYear}-${currentMonth}-01`;
     const endDate = monthEnd || `${currentYear}-${currentMonth}-31`;
-    
+
     // Fetch pending leave requests within the given range
     const pendingLeaves = await leaveTakenHistoryModel.find(
       {
@@ -389,7 +391,7 @@ const approvedPendingLeaves = async (req, res) => {
       },
       { employeeId: 1, leaveType: 1, totalDays: 1, leaveStartDate: 1, leaveEndDate: 1 }
     );
-    
+
     if (!pendingLeaves.length) {
       return res.status(200).json({
         statusCode: 200,
@@ -397,17 +399,17 @@ const approvedPendingLeaves = async (req, res) => {
         message: "No pending leaves found for the current month.",
       });
     }
-    
+
     let approvedLeaves = [];
     let insufficientBalanceLeaves = [];
     // Get the current time in IST
-    
+
     const getIndiaCurrentDateTime = () => {
       const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
       const date = new Date(indiaTime);
 
       const pad = (n) => (n < 10 ? `0${n}` : n);
-      
+
       const year = date.getFullYear();
       const month = pad(date.getMonth() + 1); // Months are 0-based
       const day = pad(date.getDate());
@@ -417,9 +419,9 @@ const approvedPendingLeaves = async (req, res) => {
 
       return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     };
-    
+
     const dateTime = getIndiaCurrentDateTime()
-        
+
     for (const leave of pendingLeaves) {
       const { employeeId, leaveType, totalDays } = leave;
 
@@ -430,7 +432,7 @@ const approvedPendingLeaves = async (req, res) => {
         console.log(`Employee ${employeeId} not found.`);
         continue;
       }
-      
+
       // Get current leave balance for the leaveType
       let availableLeaveBal = parseFloat(employee.leaveBalance[leaveType] || "0");
       let deductedDays = parseFloat(totalDays);
@@ -448,11 +450,13 @@ const approvedPendingLeaves = async (req, res) => {
         // Approve the leave request
         await leaveTakenHistoryModel.updateOne(
           { _id: leave._id },
-          { $set: { 
-            status: "Approved",
-            approvedDateTime: dateTime,
-            remarks: "Action taken automatically at month end.", 
-          } }
+          {
+            $set: {
+              status: "Approved",
+              approvedDateTime: dateTime,
+              remarks: "Action taken automatically at month end.",
+            }
+          }
         );
 
         console.log(`Approved leave for Employee ${employeeId}, Deducted ${deductedDays} from ${leaveType}.`);
@@ -501,7 +505,7 @@ const approvedPendingLeaves = async (req, res) => {
 
 const generateUninformedLeave = async (req, res) => {
   try {
-    
+
     // Extract query parameters
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : null;
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null;
@@ -518,7 +522,7 @@ const generateUninformedLeave = async (req, res) => {
     }
     // Fetch attendance records
     const dataResult = await AttendanceLogModel.find(filter, {
-      AttendanceDate: 1, EmployeeCode: 1, Duration: 1, Status: 1, EmployeeId: 1, InTime:1
+      AttendanceDate: 1, EmployeeCode: 1, Duration: 1, Status: 1, EmployeeId: 1, InTime: 1
     });
 
     // Remove duplicate attendance records Absent
@@ -530,7 +534,7 @@ const generateUninformedLeave = async (req, res) => {
       }
       return acc;
     }, { seen: new Set(), filtered: [] }).filtered;
-    
+
     if (uniqueRecords.length === 0) {
       return res.status(200).json({
         statusCode: 200,
@@ -554,7 +558,7 @@ const generateUninformedLeave = async (req, res) => {
 
     // Fetch leave history (Approved)
     const leaveData = await leaveTakenHistoryModel.find(
-      {$or:[{status:"Pending"},{status:"Approved"}]},
+      { $or: [{ status: "Pending" }, { status: "Approved" }] },
       { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 }
     );
     //  console.log(uniqueRecords) 
@@ -589,7 +593,7 @@ const generateUninformedLeave = async (req, res) => {
       // Parse InTime and compare
       if (attendance.InTime) {
         const inTimeStr = attendance.InTime.split(" ")[1]; // Get the time part
-        return inTimeStr > "09:15:00"; // Compare string times directly
+        return inTimeStr > "09:15:59"; // Compare string times directly
       }
 
       return false;
@@ -640,10 +644,10 @@ const generateUninformedLeave = async (req, res) => {
     const leaveRecords = filteredData.map(attendance => {
       const attendanceDate = attendance.AttendanceDate.toISOString().split("T")[0];
       const totalDays =
-        attendance.Duration < 270 ? "1" :
-        attendance.Duration >= 270 && attendance.Duration < 510 ? "0.5" :
-        attendance.InTime && attendance.InTime.split(" ")[1] > "09:15:00" ? "0.5" :
-        "0";
+        attendance.Duration < 255 ? "1" :
+          attendance.Duration >= 255 && attendance.Duration < 510 ? "0.5" :
+            attendance.InTime && attendance.InTime.split(" ")[1] > "09:15:59" ? "0.5" :
+              "0";
 
       return {
         employeeId: attendance.EmployeeCode,
@@ -664,7 +668,7 @@ const generateUninformedLeave = async (req, res) => {
     if (leaveRecords.length > 0) {
       await leaveTakenHistoryModel.insertMany(leaveRecords);
     }
-    
+     
     const updatedLeaves = await leaveTakenHistoryModel.find(
       {},
       { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 }
@@ -673,11 +677,11 @@ const generateUninformedLeave = async (req, res) => {
     const leaveMap = new Map();
     const uninformedLeaveMap = new Map();
     const leavesToDelete = [];
-    
+
     // Step 1: Store other leave types in a Map
     updatedLeaves.forEach(leave => {
       const key = `${leave.employeeId}`;
-    
+
       if (leave.leaveType !== "uninformedLeave") {
         if (!leaveMap.has(key)) leaveMap.set(key, []);
         leaveMap.get(key).push({
@@ -694,23 +698,23 @@ const generateUninformedLeave = async (req, res) => {
         });
       }
     });
-    
+
     // Step 2: Identify uninformedLeave records to delete
     uninformedLeaveMap.forEach((uninformedLeaves, employeeId) => {
       const existingLeaves = leaveMap.get(employeeId) || [];
-    
+
       // Sort uninformedLeave records by date to handle duplicates
       uninformedLeaves.sort((a, b) => a.startDate - b.startDate);
-    
+
       const keptUninformedLeaves = [];
-    
+
       uninformedLeaves.forEach(leave => {
         const startDate = leave.startDate;
         const endDate = leave.endDate;
-    
+
         // Check if this uninformedLeave overlaps with an existing leave
         const hasOverlap = existingLeaves.some(el => startDate >= el.startDate && endDate <= el.endDate);
-    
+
         if (hasOverlap || keptUninformedLeaves.some(existing => existing.startDate.getTime() === startDate.getTime())) {
           // If it overlaps with another leave or is a duplicate uninformedLeave, mark for deletion
           leavesToDelete.push(leave._id);
@@ -728,8 +732,7 @@ const generateUninformedLeave = async (req, res) => {
     } else {
       console.log("No uninformedLeave records to delete.");
     }
-    
-
+      
     return res.status(200).json({
       statusCode: 200,
       statusValue: "SUCCESS",
@@ -897,20 +900,20 @@ const generateUninformedLeave = async (req, res) => {
 //     if (leaveRecords.length > 0) {
 //       await leaveTakenHistoryModel.insertMany(leaveRecords);
 //     }
-    
+
 //     const updatedLeaves = await leaveTakenHistoryModel.find(
 //       {},
 //       { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 }
 //     );
-    
+
 //     const leaveMap = new Map();
 //     const uninformedLeaveMap = new Map();
 //     const leavesToDelete = [];
-    
+
 //     // Step 1: Store other leave types in a Map
 //     updatedLeaves.forEach(leave => {
 //       const key = `${leave.employeeId}`;
-    
+
 //       if (leave.leaveType !== "uninformedLeave") {
 //         if (!leaveMap.has(key)) leaveMap.set(key, []);
 //         leaveMap.get(key).push({
@@ -927,23 +930,23 @@ const generateUninformedLeave = async (req, res) => {
 //         });
 //       }
 //     });
-    
+
 //     // Step 2: Identify uninformedLeave records to delete
 //     uninformedLeaveMap.forEach((uninformedLeaves, employeeId) => {
 //       const existingLeaves = leaveMap.get(employeeId) || [];
-    
+
 //       // Sort uninformedLeave records by date to handle duplicates
 //       uninformedLeaves.sort((a, b) => a.startDate - b.startDate);
-    
+
 //       const keptUninformedLeaves = [];
-    
+
 //       uninformedLeaves.forEach(leave => {
 //         const startDate = leave.startDate;
 //         const endDate = leave.endDate;
-    
+
 //         // Check if this uninformedLeave overlaps with an existing leave
 //         const hasOverlap = existingLeaves.some(el => startDate >= el.startDate && endDate <= el.endDate);
-    
+
 //         if (hasOverlap || keptUninformedLeaves.some(existing => existing.startDate.getTime() === startDate.getTime())) {
 //           // If it overlaps with another leave or is a duplicate uninformedLeave, mark for deletion
 //           leavesToDelete.push(leave._id);
@@ -953,7 +956,7 @@ const generateUninformedLeave = async (req, res) => {
 //         }
 //       });
 //     });
-    
+
 //     // Step 3: Delete the identified uninformedLeave records
 //     if (leavesToDelete.length > 0) {
 //       await leaveTakenHistoryModel.deleteMany({ _id: { $in: leavesToDelete } });
@@ -961,7 +964,7 @@ const generateUninformedLeave = async (req, res) => {
 //     } else {
 //       console.log("No uninformedLeave records to delete.");
 //     }
-    
+
 
 //     return res.status(200).json({
 //       statusCode: 200,
@@ -990,8 +993,9 @@ const getAttendanceLogsTodays = async (req, res) => {
 
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : new Date(formattedCurrentDate);
     // MongoDB query to fetch attendance records
-    const dataResult = await AttendanceLogModel.find({Status:"Present ", AttendanceDate:dateTo},{C1:0, C2:0, C3:0, C4:0, C5:0, C6:0, C7:0, CategoryId:0, LeaveRemarks:0, LeaveType:0, LeaveTypeId:0, Location:0, LoginName:0,	LoginPassword:0,
-      OverTime:0,	OverTimeE:0,	P1Status:0,	P2Status:0,	P3Status:0, ExtensionNo:0	
+    const dataResult = await AttendanceLogModel.find({ Status: "Present ", AttendanceDate: dateTo }, {
+      C1: 0, C2: 0, C3: 0, C4: 0, C5: 0, C6: 0, C7: 0, CategoryId: 0, LeaveRemarks: 0, LeaveType: 0, LeaveTypeId: 0, Location: 0, LoginName: 0, LoginPassword: 0,
+      OverTime: 0, OverTimeE: 0, P1Status: 0, P2Status: 0, P3Status: 0, ExtensionNo: 0
     })
 
     // Remove duplicates based on AttendanceDate and EmployeeCode
@@ -1002,10 +1006,10 @@ const getAttendanceLogsTodays = async (req, res) => {
         acc.filtered.push(record);
       }
       return acc;
-    }, { seen: new Set(), filtered: [] }).filtered;  
+    }, { seen: new Set(), filtered: [] }).filtered;
 
     // get leave history
-    const leaveData = await leaveTakenHistoryModel.find({status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1})
+    const leaveData = await leaveTakenHistoryModel.find({ status: "Approved" }, { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 })
     // console.log(11, leaveData)
     const finalResult = uniqueRecords.map(attendance => {
       const attendanceObj = attendance.toObject();
@@ -1022,7 +1026,7 @@ const getAttendanceLogsTodays = async (req, res) => {
       if (matchingLeave) {
         return {
           ...attendanceObj,
-          isLeaveTaken:true,
+          isLeaveTaken: true,
           leaveType: matchingLeave.leaveType
         };
       }
@@ -1032,7 +1036,7 @@ const getAttendanceLogsTodays = async (req, res) => {
         leaveType: ""
       };
     });
-    
+
     // count total employee Rec
     const employeeCount = await employeeModel.countDocuments({});
     if (uniqueRecords.length > 0) {
@@ -1041,7 +1045,7 @@ const getAttendanceLogsTodays = async (req, res) => {
         statusValue: "SUCCESS",
         message: "Attendance records fetched successfully.",
         totalPresent: finalResult.length,
-        totalEmployees:employeeCount,
+        totalEmployees: employeeCount,
         empAttendanceLogs: finalResult
       });
     } else {
@@ -1309,7 +1313,7 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
-   
+
     // Validate employeeId
     if (!employeeId) {
       return res.status(400).json({
@@ -1352,18 +1356,18 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
       .skip(offset)
       .limit(limit)
       .sort({ AttendanceDate: -1 });
-      // Remove duplicates based on AttendanceDate and EmployeeCode
+    // Remove duplicates based on AttendanceDate and EmployeeCode
     const uniqueRecords = dataResult.reduce((acc, record) => {
-        const uniqueKey = `${record.AttendanceDate.toISOString()}_${record.EmployeeCode}`;
-        if (!acc.seen.has(uniqueKey)) {
-          acc.seen.add(uniqueKey);
-          acc.filtered.push(record);
-        }
-        return acc;
-    }, { seen: new Set(), filtered: [] }).filtered;  
+      const uniqueKey = `${record.AttendanceDate.toISOString()}_${record.EmployeeCode}`;
+      if (!acc.seen.has(uniqueKey)) {
+        acc.seen.add(uniqueKey);
+        acc.filtered.push(record);
+      }
+      return acc;
+    }, { seen: new Set(), filtered: [] }).filtered;
 
     // get leave history
-    const leaveData = await leaveTakenHistoryModel.find({employeeId:employeeId, status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1})
+    const leaveData = await leaveTakenHistoryModel.find({ employeeId: employeeId, status: "Approved" }, { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 })
     // console.log(11, leaveData)
     const finalResult = uniqueRecords.map(attendance => {
       const attendanceObj = attendance.toObject();
@@ -1380,7 +1384,7 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
       if (matchingLeave) {
         return {
           ...attendanceObj,
-          isLeaveTaken:true,
+          isLeaveTaken: true,
           leaveType: matchingLeave.leaveType
         };
       }
@@ -1430,20 +1434,20 @@ const getAttendanceDaysByMonth = async (req, res) => {
     let employeeId = req.params.employeeId;
     // Define the mapping
     const employeeIdMapping = {
-        "27166": "CON004",
-        "27516": "CON020",
-        "25646": "CON006",
-        "27176": "CON005"
+      "27166": "CON004",
+      "27516": "CON020",
+      "25646": "CON006",
+      "27176": "CON005"
     };
 
     // Check if employeeId exists in the mapping and override it
     if (employeeIdMapping[employeeId]) {
-        employeeId = employeeIdMapping[employeeId];
+      employeeId = employeeIdMapping[employeeId];
     }
-    
+
     const yearMonth = req.query.yearMonth;
-    const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`); 
-    const endOfMonth = new Date(new Date(startOfMonth).setMonth(startOfMonth.getMonth() + 1)); 
+    const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`);
+    const endOfMonth = new Date(new Date(startOfMonth).setMonth(startOfMonth.getMonth() + 1));
 
     const aggResult = await AttendanceLogModel.aggregate([
       {
@@ -1451,16 +1455,16 @@ const getAttendanceDaysByMonth = async (req, res) => {
           EmployeeCode: employeeId,
           AttendanceDate: {
             $gte: startOfMonth,
-            $lt: endOfMonth, 
+            $lt: endOfMonth,
           },
         },
       },
       {
         $lookup: {
-          from:"employees",
+          from: "employees",
           localField: "EmployeeCode",
           foreignField: "employeeId",
-          as : "employeeInfo"
+          as: "employeeInfo"
         }
       },
       {
@@ -1487,22 +1491,22 @@ const getAttendanceDaysByMonth = async (req, res) => {
       const minutes = durationInMinutes % 60;
       return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
     };
-    
+
     const getAttendanceStatus = (durationInMinutes, inTimeStr) => {
       const hours = Math.floor(durationInMinutes / 60);
       const minutes = durationInMinutes % 60;
       const totalMinutes = hours * 60 + minutes;
-    
+
       const timeThreshold = "09:18:00";
       let isLate = false;
-    
+
       if (inTimeStr && inTimeStr.includes(" ")) {
         const timePart = inTimeStr.split(" ")[1]; // e.g., "09:45:00"
         if (timePart > timeThreshold) {
           isLate = true;
         }
       }
-    
+
       if (isLate) {
         return "Half Day"; // Late overrides Full Day
       } else if (totalMinutes >= 510) {
@@ -1513,29 +1517,29 @@ const getAttendanceDaysByMonth = async (req, res) => {
         return "Absent";
       }
     };
-    
+
     const updatedData = aggResult.map(entry => {
       const durationInHHMM = convertDuration(entry.Duration);
-      const attendanceStatus = getAttendanceStatus(entry.Duration, entry.InTime); 
-    
+      const attendanceStatus = getAttendanceStatus(entry.Duration, entry.InTime);
+
       return {
         ...entry,
         Duration: durationInHHMM,
         AttendanceStatus: attendanceStatus
       };
     });
-    
+
     const uniqueData = Object.values(
       updatedData.reduce((acc, entry) => {
         if (!acc[entry.AttendanceDate]) {
-          acc[entry.AttendanceDate] = entry; 
+          acc[entry.AttendanceDate] = entry;
         }
         return acc;
       }, {})
     );
     // get data from leav history
-    const leaveData = await leaveTakenHistoryModel.find({status:"Approved"},{employeeId:1, leaveType:1, leaveStartDate:1, leaveEndDate:1});
-    
+    const leaveData = await leaveTakenHistoryModel.find({ status: "Approved" }, { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 });
+
     const finalResult = uniqueData.map(attendance => {
       const matchingLeave = leaveData.find(leave => {
         const leaveStart = new Date(leave.leaveStartDate);
@@ -1550,7 +1554,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
       if (matchingLeave) {
         return {
           ...attendance,
-          isLeaveTaken:true,
+          isLeaveTaken: true,
           leaveType: matchingLeave.leaveType
         };
       }
@@ -1560,9 +1564,9 @@ const getAttendanceDaysByMonth = async (req, res) => {
         leaveType: ""
       };
     });
-    
-    const holidaysData = await holidaysModel.find({},{holidayName:1, holidayDate:1});
-    
+
+    const holidaysData = await holidaysModel.find({}, { holidayName: 1, holidayDate: 1 });
+
     // Convert holiday dates to Date objects for comparison
     const holidaysMap = holidaysData.reduce((map, holiday) => {
       map[new Date(holiday.holidayDate).toISOString().split('T')[0]] = holiday.holidayName;
@@ -1576,7 +1580,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
         record.AttendanceStatus = holidaysMap[attendanceDateKey];
         // record.holidayName = holidaysMap[attendanceDateKey];
       } else {
-        record.AttendanceStatus = record.AttendanceStatus 
+        record.AttendanceStatus = record.AttendanceStatus
       }
     });
 
@@ -1586,15 +1590,15 @@ const getAttendanceDaysByMonth = async (req, res) => {
       const formattedDate = new Intl.DateTimeFormat('en-GB', options).format(date);
       return { ...item, AttendanceDate: formattedDate };
     });
-    
-    const empData = await employeeModel.findOne({employeeId:req.params.employeeId},{shiftTime:1});
+
+    const empData = await employeeModel.findOne({ employeeId: req.params.employeeId }, { shiftTime: 1 });
     if (empData && empData.shiftTime) {
-      formattedResult = formattedResult.map(entry =>({
+      formattedResult = formattedResult.map(entry => ({
         ...entry,
         shiftTime: entry.shiftTime || empData.shiftTime
       }))
     }
-    
+
     const totalWorkingDays = formattedResult.reduce((sum, entry) => {
       const status = entry.AttendanceStatus?.trim();
       if (status === "Full Day") {
@@ -1604,17 +1608,17 @@ const getAttendanceDaysByMonth = async (req, res) => {
       }
       return sum; // Skip if it's not Full Day or Half Day
     }, 0);
-    
+
     if (aggResult.length > 0) {
       return res.status(200).json({
         statusCode: 200,
         statusValue: "SUCCESS",
         message: "Attendance records fetched successfully.",
         data: formattedResult.reverse(),
-        data2:{totalWorkingDays: totalWorkingDays.toString()}
+        data2: { totalWorkingDays: totalWorkingDays.toString() }
       });
     } else {
-      return res.status(404).json({  
+      return res.status(404).json({
         statusCode: 404,
         statusValue: "FAIL",
         message: "No records found for the given employee or filters.",
@@ -1668,9 +1672,9 @@ const removeDuplicateAttendance = async (req, res) => {
       ]);
       // console.log(11, aggResult)
 
-      
+
       for (const record of aggResult) {
-        
+
         const [firstId, ...duplicateIds] = record.ids;
 
         await AttendanceLogModel.deleteMany({
@@ -1678,7 +1682,7 @@ const removeDuplicateAttendance = async (req, res) => {
         });
       }
       console.log("Duplicate attendance records removed successfully")
-    } else if(req.query.yearMonth) {
+    } else if (req.query.yearMonth) {
       const yearMonth = req.query.yearMonth; // e.g., '2025-01'
       const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`);
       const endOfMonth = new Date(new Date(startOfMonth).setMonth(startOfMonth.getMonth() + 1));
@@ -1686,7 +1690,7 @@ const removeDuplicateAttendance = async (req, res) => {
       const aggResult = await AttendanceLogModel.aggregate([
         {
           $match: {
-            AttendanceDate: {   
+            AttendanceDate: {
               $gte: startOfMonth,
               $lt: endOfMonth,
             },
@@ -1705,9 +1709,9 @@ const removeDuplicateAttendance = async (req, res) => {
       ]);
       // console.log(11, aggResult)
 
-      
+
       for (const record of aggResult) {
-        
+
         const [firstId, ...duplicateIds] = record.ids;
 
         await AttendanceLogModel.deleteMany({
@@ -1715,7 +1719,7 @@ const removeDuplicateAttendance = async (req, res) => {
         });
       }
       res.status(200).json({
-        message:"Duplicate attendance records removed successfully"
+        message: "Duplicate attendance records removed successfully"
       })
     }
   } catch (err) {
@@ -1755,7 +1759,7 @@ const startRemoveAttendanceDuplicateRecords = () => {
 //     WHERE EmployeeId = @employeeId;
 //     `;
 //     // Execute query
-    
+
 //     const result = await pool.request()
 //     .input('newPassword', newPassword)
 //     .input('employeeId', employeeId)
@@ -1801,7 +1805,7 @@ const startRemoveAttendanceDuplicateRecords = () => {
 const removeDuplicateLogs = async (req, res) => {
   try {
     const dataResult = await AttendanceLogModel.find({})
-    
+
   } catch (err) {
 
   }
@@ -1810,179 +1814,179 @@ const removeDuplicateLogs = async (req, res) => {
 
 const createAttendanceLogForOutDuty = async (req, res) => {
   try {
-      const { employeeId, location } = req.body;
+    const { employeeId, location } = req.body;
 
-      // Validate required fields
-      if (!employeeId && !location) {
-          return res.status(400).json({
-              message: "employeeId is required",
-              statusCode: 400,
-              statusValue: "error"
-          });
+    // Validate required fields
+    if (!employeeId && !location) {
+      return res.status(400).json({
+        message: "employeeId is required",
+        statusCode: 400,
+        statusValue: "error"
+      });
+    }
+
+    const now = moment().tz("Asia/Kolkata");
+    const AttendanceDate = moment().tz("Asia/Kolkata").startOf("day").toDate();
+    const formattedCheckIn = now.format("YYYY-MM-DD HH:mm:ss");
+    const OutTime = now.format("YYYY-MM-DD") + " 23:59:00" // print 2025-03-26 HH:mm:ss
+    const PunchRecords = `${now.format("HH:mm")}:in(IN),`;
+
+    // Check if the employee has already logged attendance for today
+    const existingLog = await attendanceLogModelForOutDuty.findOne({
+      employeeId,
+      AttendanceDate: {
+        $gte: AttendanceDate, // Start of the day
+        $lt: moment(AttendanceDate).add(1, "day").toDate() // Next day's start (exclusive)
       }
-      
-      const now = moment().tz("Asia/Kolkata");
-      const AttendanceDate = moment().tz("Asia/Kolkata").startOf("day").toDate();
-      const formattedCheckIn = now.format("YYYY-MM-DD HH:mm:ss");
-      const OutTime = now.format("YYYY-MM-DD") + " 23:59:00" // print 2025-03-26 HH:mm:ss
-      const PunchRecords = `${now.format("HH:mm")}:in(IN),`;
+    });
 
-      // Check if the employee has already logged attendance for today
-      const existingLog = await attendanceLogModelForOutDuty.findOne({
-          employeeId,
-          AttendanceDate: {
-              $gte: AttendanceDate, // Start of the day
-              $lt: moment(AttendanceDate).add(1, "day").toDate() // Next day's start (exclusive)
-          }
+    if (existingLog) {
+      return res.status(400).json({
+        statusCode: 400,
+        statusValue: "FAIL",
+        message: "Attendance log already exists for today"
       });
+    }
 
-      if (existingLog) {
-          return res.status(400).json({
-              statusCode: 400,
-              statusValue: "FAIL",
-              message: "Attendance log already exists for today"
-          });
-      }
-      
-      // Create a new attendance log
-      const newLog = new attendanceLogModelForOutDuty({
-          employeeId,
-          AttendanceDate, // Stores only the date (00:00:00 IST)
-          location,
-          InTime: formattedCheckIn,
-          PunchRecords,
-          OutTime,
-          imageUrl: "NA",
-          createdAt: now.toDate(),
-          updatedAt: now.toDate()
-      });
+    // Create a new attendance log
+    const newLog = new attendanceLogModelForOutDuty({
+      employeeId,
+      AttendanceDate, // Stores only the date (00:00:00 IST)
+      location,
+      InTime: formattedCheckIn,
+      PunchRecords,
+      OutTime,
+      imageUrl: "NA",
+      createdAt: now.toDate(),
+      updatedAt: now.toDate()
+    });
 
-      // Save to database
-      await newLog.save();
+    // Save to database
+    await newLog.save();
 
-      return res.status(201).json({
-          message: "Attendance log created successfully",
-          statusCode: 201,
-          statusValue: "success",
-          data: newLog
-      });
+    return res.status(201).json({
+      message: "Attendance log created successfully",
+      statusCode: 201,
+      statusValue: "success",
+      data: newLog
+    });
   } catch (error) {
-      console.error("Error creating attendance log:", error);
-      return res.status(500).json({
-          message: "Internal Server Error",
-          statusCode: 500,
-          statusValue: "error"
-      });
+    console.error("Error creating attendance log:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      statusCode: 500,
+      statusValue: "error"
+    });
   }
 };
 
 
 const punchOutForOutDuty = async (req, res) => {
   try {
-      const { id } = req.params;
+    const { id } = req.params;
 
-      // Validate required fields
-      if (!id) {
-          return res.status(400).json({
-              message: "Id is required",
-              statusCode: 400,
-              statusValue: "error"
-          });
-      }
+    // Validate required fields
+    if (!id) {
+      return res.status(400).json({
+        message: "Id is required",
+        statusCode: 400,
+        statusValue: "error"
+      });
+    }
 
-      // Get current date & time in India Standard Time (IST)
-      const now = moment().tz("Asia/Kolkata");
+    // Get current date & time in India Standard Time (IST)
+    const now = moment().tz("Asia/Kolkata");
 
-      // Format OutTime as "YYYY-MM-DD HH:mm:ss" in IST
-      const formattedOutTime = now.format("YYYY-MM-DD HH:mm:ss");
-      // Format PunchRecord as "HH:mm:out(OUT)"
-      const punchOutRecord = `${now.format("HH:mm")}:out(OUT)`;
-      
-      // Check if the employee has an existing attendance log
-      const existingLog = await attendanceLogModelForOutDuty.findById(id);
-      if (!existingLog) {
-          return res.status(404).json({
-              statusCode: 404,
-              statusValue: "FAIL",
-              message: "Attendance log not found or invalid ID"
-          });
-      }
-      
-      // Append the punch-out time to PunchRecords
-      const updatedPunchRecords = existingLog.PunchRecords
+    // Format OutTime as "YYYY-MM-DD HH:mm:ss" in IST
+    const formattedOutTime = now.format("YYYY-MM-DD HH:mm:ss");
+    // Format PunchRecord as "HH:mm:out(OUT)"
+    const punchOutRecord = `${now.format("HH:mm")}:out(OUT)`;
+
+    // Check if the employee has an existing attendance log
+    const existingLog = await attendanceLogModelForOutDuty.findById(id);
+    if (!existingLog) {
+      return res.status(404).json({
+        statusCode: 404,
+        statusValue: "FAIL",
+        message: "Attendance log not found or invalid ID"
+      });
+    }
+
+    // Append the punch-out time to PunchRecords
+    const updatedPunchRecords = existingLog.PunchRecords
       ? `${existingLog.PunchRecords}${punchOutRecord},`
       : `${punchOutRecord},`;
 
-      // Update the OutTime and PunchRecords fields
-      const updatedLog = await attendanceLogModelForOutDuty.findByIdAndUpdate(
-        id,
-        { 
-            $set: { 
-                OutTime: formattedOutTime,
-                PunchRecords: updatedPunchRecords
-            }
-        },
-        { new: true } // Returns the updated document
-      );
+    // Update the OutTime and PunchRecords fields
+    const updatedLog = await attendanceLogModelForOutDuty.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          OutTime: formattedOutTime,
+          PunchRecords: updatedPunchRecords
+        }
+      },
+      { new: true } // Returns the updated document
+    );
 
-      return res.status(200).json({
-          message: "Punch-out recorded successfully",
-          statusCode: 200,
-          statusValue: "success",
-          data: updatedLog
-      });
+    return res.status(200).json({
+      message: "Punch-out recorded successfully",
+      statusCode: 200,
+      statusValue: "success",
+      data: updatedLog
+    });
   } catch (error) {
-      console.error("Error processing punch-out:", error);
-      return res.status(500).json({
-          message: "Internal Server Error",
-          statusCode: 500,
-          statusValue: "error"
-      });
+    console.error("Error processing punch-out:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      statusCode: 500,
+      statusValue: "error"
+    });
   }
 };
 
 
 const getAttendanceLogForOutDutyById = async (req, res) => {
   try {
-      const { employeeId } = req.params;
+    const { employeeId } = req.params;
 
-      // Validate required fields
-      if (!employeeId) {
-          return res.status(400).json({
-              message: "employeeId is required",
-              statusCode: 400,
-              statusValue: "error"
-          });
+    // Validate required fields
+    if (!employeeId) {
+      return res.status(400).json({
+        message: "employeeId is required",
+        statusCode: 400,
+        statusValue: "error"
+      });
+    }
+
+    // Get current date & time in India Standard Time (IST)
+    const now = moment().tz("Asia/Kolkata");
+
+    // Store AttendanceDate as YYYY-MM-DDT00:00:00.000Z (IST start of the day)
+    const AttendanceDate = now.startOf("day").toDate();
+
+    // Check if the employee has already logged attendance for today
+    const dataRecords = await attendanceLogModelForOutDuty.findOne({
+      employeeId,
+      AttendanceDate: {
+        $gte: AttendanceDate, // Start of the day
+        $lt: moment(AttendanceDate).add(1, "day").toDate() // Next day's start (exclusive)
       }
-      
-      // Get current date & time in India Standard Time (IST)
-      const now = moment().tz("Asia/Kolkata");
+    });
 
-      // Store AttendanceDate as YYYY-MM-DDT00:00:00.000Z (IST start of the day)
-      const AttendanceDate = now.startOf("day").toDate();
-
-      // Check if the employee has already logged attendance for today
-      const dataRecords = await attendanceLogModelForOutDuty.findOne({
-          employeeId,
-          AttendanceDate: {
-              $gte: AttendanceDate, // Start of the day
-              $lt: moment(AttendanceDate).add(1, "day").toDate() // Next day's start (exclusive)
-          }
-      });
-
-      return res.status(201).json({
-          message: "Attendance log created successfully",
-          statusCode: 201,
-          statusValue: "success",
-          data: dataRecords
-      });
+    return res.status(201).json({
+      message: "Attendance log created successfully",
+      statusCode: 201,
+      statusValue: "success",
+      data: dataRecords
+    });
   } catch (error) {
-      console.error("Error creating attendance log:", error);
-      return res.status(500).json({
-          message: "Internal Server Error",
-          statusCode: 500,
-          statusValue: "error"
-      });
+    console.error("Error creating attendance log:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      statusCode: 500,
+      statusValue: "error"
+    });
   }
 };
 
@@ -1990,68 +1994,74 @@ const getAttendanceLogForOutDutyById = async (req, res) => {
 const createEmployeeSalary = async (req, res) => {
   try {
     const {
-      employeeName,
-      employeeId,
-      employeeCode,
-      deptName,
-      month,
-      EL,
-      CL,
-      ML,
-      D_EL,
-      D_CL,
-      D_ML,
-      regularisation,
-      shortLeave,
-      halfDay,
-      absent,
-      workedDays,
-      SD,
+      pay_slip_month,
+      company_address,
+      employee_basic_details: {
+        employee_name,
+        employee_code,
+        designation,
+        date_of_joining,
+        employee_pan,
+        employee_aadhar,
+        bank_name,
+        bank_ifsc,
+        bank_account,
+        employee_uan,
+        employee_esic,
+        payment_mode
+      } = {},
+      leave_summary: {
+        month_days,
+        unpaid_days,
+        payable_days,
+        EL,
+        CL,
+        ML,
+        D_EL,
+        D_CL,
+        D_ML,
+        regularisation,
+        shortLeave,
+        halfDay,
+        absent,
+        workedDays,
+        SD,
+      } = {},
+      salary_details: {
+        basic_salary,
+        hra,
+        travel_allowances,
+        special_allowances,
+        arrears,
+        bonus_or_others,
+        total_gross_salary,
+        employee_pf,
+        employee_esi,
+        tds,
+        loan_advance,
+        penalty,
+        transport_or_others,
+        total_deduction,
+        net_pay
+      } = {},
     } = req.body;
+    console.log(req.body)
+    // Check for duplicate entry
+    const existingSalary = await employeeSalaryModel.findOne({
+      pay_slip_month,
+      "employee_basic_details.employee_code": employee_code,
+    });
 
-    // Validate required fields
-    if (!employeeName || !deptName || !month) {
+    if (existingSalary) {
       return res.status(400).json({
-        message: "employeeName, deptName, and month are required",
+        message: "Salary record already exists for this employee and month",
         statusCode: 400,
         statusValue: "FAIL",
       });
     }
-    
-    // check already exists employee salary for the same month
-    const isAlreadyExists = await employeeSalaryModel.findOne({
-      employeeCode,
-      month
-    })
-    
-    if (isAlreadyExists) {
-      return res.status(400).json({
-        message: "Salary record for this employee and month already exists",
-        statusCode: 400,
-        statusValue: "FAIL",
-      })
-    }
-    
+
     // Create new employee salary record
-    const newSalary = await employeeSalaryModel.create({
-      employeeName,
-      employeeId: employeeId || "",
-      employeeCode: employeeCode || "",
-      deptName,
-      month,
-      EL: EL || 0.0,
-      CL: CL || 0.0,
-      ML: ML || 0.0,
-      D_EL: D_EL || 0.0,
-      D_CL: D_CL || 0.0,
-      D_ML: D_ML || 0.0,
-      regularisation: regularisation || 0.0,
-      shortLeave: shortLeave || 0.0,
-      halfDay: halfDay || 0.0,
-      absent: absent || 0.0,
-      workedDays: workedDays || 0.0,
-      SD: SD || 0.0
-    });
+    const newSalary = await employeeSalaryModel.create(req.body);
 
     return res.status(201).json({
       message: "Employee salary record created successfully",
@@ -2064,7 +2074,7 @@ const createEmployeeSalary = async (req, res) => {
     return res.status(500).json({
       message: "Internal Server Error",
       statusCode: 500,
-      statusValue: "error",
+      statusValue: "ERROR",
     });
   }
 };
@@ -2072,13 +2082,92 @@ const createEmployeeSalary = async (req, res) => {
 
 const getAllEmployeeSalaries = async (req, res) => {
   try {
-    const salaryRecords = await employeeSalaryModel.find().sort({ createdAt: -1 });
-    return res.status(200).json({
-      message: "All employee salary records fetched successfully",
-      statusCode: 200,
-      statusValue: "success",
-      data: salaryRecords,
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(400).json({
+        statusCode: 400,
+        statusValue: "FAIL",
+        message: "Token is required",
+      });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded) {
+      return res.status(400).json({
+        statusCode: 400,
+        statusValue: "FAIL",
+        message: "Invalid token",
+      });
+    }
+    
+    const page = parseInt(req.query.page) || 1;
+    const limitNumber = parseInt(req.query.limit) || 200;
+    const skip = (page - 1) * limitNumber;
+    const search = req.query.search || "";
+    
+    let searchCondition = {};
+    
+    if (search) {
+      searchCondition = {
+        $or: [
+          { pay_slip_month: { $regex: new RegExp(search, "i") } },
+          { "employee_basic_details.employee_name": { $regex: new RegExp(search, "i") } },
+          { "employee_basic_details.employee_code": { $regex: new RegExp(search, "i") } },
+        ],
+      };
+    }
+     
+    // === Employee role ===
+    if (decoded.role === "Employee") {
+      const salaryRecords = await employeeSalaryModel.find({
+        "employee_basic_details.employee_code": decoded.employeeId,
+        ...searchCondition,
+      }).sort({ createdAt: -1 });
+
+      return res.status(200).json({
+        message: "Employee salary records fetched successfully",
+        statusCode: 200,
+        statusValue: "success",
+        data: salaryRecords,
+      });
+
+    } else if (decoded.role === "HR-Admin" || decoded.role === "Admin") {
+      const aggregatePipeline = [
+        { $match: searchCondition },
+        { $sort: { createdAt: -1 } },
+        {
+          $facet: {
+            metadata: [{ $count: "totalRecords" }],
+            data: [{ $skip: skip }, { $limit: limitNumber }],
+          },
+        },
+      ];
+
+      const result = await employeeSalaryModel.aggregate(aggregatePipeline);
+
+      const totalRecords = result[0]?.metadata[0]?.totalRecords || 0;
+      const records = result[0]?.data || [];
+
+      return res.status(200).json({
+        message: "All employee salary records fetched successfully",
+        statusCode: 200,
+        statusValue: "success",
+        data: records,
+        pagination: {
+          totalRecords,
+          currentPage: page,
+          totalPages: Math.ceil(totalRecords / limitNumber),
+        },
+      });
+    }
+
+    // === Unauthorized role ===
+    return res.status(403).json({
+      statusCode: 403,
+      statusValue: "FAIL",
+      message: "You are not authorized to access this resource",
     });
+
   } catch (error) {
     console.error("Error fetching salary records:", error);
     return res.status(500).json({
@@ -2088,6 +2177,7 @@ const getAllEmployeeSalaries = async (req, res) => {
     });
   }
 };
+
 
 
 

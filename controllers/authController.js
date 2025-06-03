@@ -349,7 +349,7 @@ const getEmployeeListByManagerId = async (req, res) => {
              
             // Retrieve paginated employee records
             const employees = await employeeModel
-                .find({})
+                .find({accountStatus:"Active"})
                 .skip((pageNumber - 1) * limitNumber)
                 .limit(limitNumber);
 

@@ -15,6 +15,7 @@ const {
     createEmployeeSalary,
     getAllEmployeeSalaries
 } = require('../controllers/mainController');
+const authMiddleware = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 // rate limit
@@ -53,7 +54,7 @@ router.get('/get-log-records/:employeeId', getAttendanceLogForOutDutyById);
 
 
 router.post('/save-salary-data', createEmployeeSalary);
-router.get('/all-employee-salary-data', getAllEmployeeSalaries);
+router.get('/all-employee-salary-data', authMiddleware, getAllEmployeeSalaries);
 
 // router.get('/punchTime',getPunchTimeDetails);  // temp-used
 

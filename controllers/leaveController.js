@@ -128,8 +128,8 @@ const applyLeave = async (req, res) => {
         };
 
         const dateTime = getIndiaCurrentDateTime()
-        
-        
+
+
         const availableBalance = await employeeModel.findOne(
             { $or: [{ employeeCode: req.params.employeeId }, { employeeId: req.params.employeeId }] },
             { employeeId: 1, leaveBalance: 1 }
@@ -143,7 +143,7 @@ const applyLeave = async (req, res) => {
                 statusValue: "error"
             });
         }
-        
+
         // Extract leaveType safely
         leaveType = req.body.leaveType?.trim();
         // console.log("Available Leave Balance:", availableBalance.leaveBalance);
@@ -163,7 +163,7 @@ const applyLeave = async (req, res) => {
             status: "Pending",
             leaveType: leaveType  // Ensure comparison is done correctly
         });
-        
+
         // Calculate total pending leave balance
         let totalPendingLeaveBal = leaveHistory.reduce((sum, leave) => sum + Number(leave.totalDays), 0);
         totalPendingLeaveBal += Number(req.body.totalDays);
@@ -229,7 +229,7 @@ const applyLeave = async (req, res) => {
             approvedBy: approvedBy || "NA",
             status: "Pending",
             dateTime: dateTime,
-            shift:shift || "",
+            shift: shift || "",
             location: req.body.location || ""
         })
 
@@ -269,7 +269,7 @@ const applyForRegularization = async (req, res) => {
                 message: result.error.details[0].message,
             });
         }
-        
+
         // Extract the token from the Authorization header
         const token = req.headers.authorization?.split(" ")[1];
         if (!token) {
@@ -299,14 +299,14 @@ const applyForRegularization = async (req, res) => {
                 message: "Invalid date format for leaveStartDate. Use 'YYYY-MM-DD'.",
             });
         }
-        
+
         const today = moment().startOf('day'); // Current date
         const maxDate = today.clone().subtract(1, 'day'); // Yesterday
         const minDate = today.clone().subtract(7, 'days');  // 7 days before today (excluding today)
-        
+
         const leaveDate = moment(leaveStartDate, "YYYY-MM-DD", true);
-        
-        if(leaveType === "regularized") {
+
+        if (leaveType === "regularized") {
             if (leaveDate.isBefore(minDate) || leaveDate.isAfter(maxDate)) {
                 return res.status(400).json({
                     statusValue: "FAIL",
@@ -324,18 +324,23 @@ const applyForRegularization = async (req, res) => {
             }
         }
         // Get current month start and end dates
-        const startOfMonth = moment().startOf("month").toDate();
-        const endOfMonth = moment().endOf("month").toDate();
+        // Get current month start and end as ISO date strings
+        const startOfMonth = moment().startOf('month').toDate();
+        const endOfMonth = moment().endOf('month').toDate();
 
-        // Fetch employee's leave data for the current month
+        // MongoDB query using $expr to compare string dates
         const checkMaxLimitReg = await leaveTakenHistoryModel.find({
             employeeId: req.params.employeeId,
-            leaveType: leaveType, 
-            createdAt: { $gte: startOfMonth, $lte: endOfMonth }, 
+            leaveType: leaveType,
+            $expr: {
+                $and: [
+                    { $lte: [{ $toDate: "$leaveStartDate" }, endOfMonth] },
+                    { $gte: [{ $toDate: "$leaveEndDate" }, startOfMonth] }
+                ]
+            }
         });
-
         // Check if the count exceeds the limit
-        if(leaveType === "regularized") {
+        if (leaveType === "regularized") {
             if (checkMaxLimitReg.length >= 2) {
                 return res.status(400).json({
                     message: "You have already reached the maximum regularization limit for this month.",
@@ -372,10 +377,12 @@ const applyForRegularization = async (req, res) => {
 
         const dateTime = getIndiaCurrentDateTime()
         // check attendance for employee
-        const checkAttendance = await AttendanceLogModel.findOne({$and:[
-            {AttendanceDate:new Date(req.body.leaveStartDate)},
-            {EmployeeCode:req.params.employeeId},
-        ]})
+        const checkAttendance = await AttendanceLogModel.findOne({
+            $and: [
+                { AttendanceDate: new Date(req.body.leaveStartDate) },
+                { EmployeeCode: req.params.employeeId },
+            ]
+        })
         // console.log(checkAttendance.Status)
         if (!checkAttendance) {
             return res.status(400).json({
@@ -392,7 +399,7 @@ const applyForRegularization = async (req, res) => {
             leaveEndDate: leaveStartDate,
             totalDays: "1",
             reason: reason,
-            approvedBy: getUser.managerId,  
+            approvedBy: getUser.managerId,
             status: "Pending",
             dateTime: dateTime
         })
@@ -452,13 +459,13 @@ const requestCompOff = async (req, res) => {
                 message: "Invalid token",
             });
         }
-      
+
         // check already applied for the same date
         const existingCompOff = await CompOff.findOne({
             employeeId: req.params.employeeId,
             compOffDate: compOffDate
         });
-        
+
         if (existingCompOff) {
             return res.status(400).json({
                 message: "Compensatory off already applied for the same date.",
@@ -466,7 +473,7 @@ const requestCompOff = async (req, res) => {
                 statusValue: "error"
             });
         }
-        
+
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
         if (!getUser || getUser.employmentType === "Contractual" || getUser.employmentType === "Contractual " || getUser.employmentType === " Contractual") {
             return res.status(400).json({
@@ -475,7 +482,7 @@ const requestCompOff = async (req, res) => {
                 statusValue: "error"
             });
         }
-        
+
         // Get current date and time in IST
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
@@ -500,8 +507,8 @@ const requestCompOff = async (req, res) => {
             compOffDate,
             reason,
             approvedBy: getUser.managerId || "",
-            appliedDate:dateTime,
-            totalDays:"1",
+            appliedDate: dateTime,
+            totalDays: "1",
             // comments:"Approved by manager"
         });
 
@@ -607,19 +614,19 @@ const actionCompOff = async (req, res) => {
         };
 
         const dateTime = getIndiaCurrentDateTime();
-        const compOffData = await CompOff.findOne({_id: req.params.id})
-        const empData = await employeeModel.findOne({employeeId:compOffData.employeeId})
+        const compOffData = await CompOff.findOne({ _id: req.params.id })
+        const empData = await employeeModel.findOne({ employeeId: compOffData.employeeId })
         // Create a new Comp Off request
         const compOffRequest = await CompOff.findOneAndUpdate(
             { _id: req.params.id },
-            { 
+            {
                 status: req.body.status,
                 approvedDate: dateTime,
                 comments: "Action taken by manager",
                 approvedBy: empData?.managerId || "NA"
             }
         );
-        
+
         if (req.body.status === "Approved") {
             const compOffData = await CompOff.findById(req.params.id);
             if (!compOffData) {
@@ -629,9 +636,9 @@ const actionCompOff = async (req, res) => {
                     message: "CompOff data not found."
                 });
             }
-        
+
             const totalDays = parseInt(compOffData.totalDays, 10) || 0; // Convert string to integer safely
-        
+
             await employeeModel.updateOne(
                 { employeeId: compOffData.employeeId },
                 [
@@ -650,8 +657,8 @@ const actionCompOff = async (req, res) => {
                 ]
             );
         }
-        
-        
+
+
         if (!compOffRequest) {
             return res.status(400).json({
                 message: 'Compoff request not updated.',
@@ -691,7 +698,7 @@ const actionForLeavApplication = async (req, res) => {
                 message: result.error.details[0].message,
             });
         }
-        
+
         // Extract the token from the Authorization header
         const token = req.headers.authorization?.split(" ")[1];
         if (!token) {
@@ -704,14 +711,14 @@ const actionForLeavApplication = async (req, res) => {
         // Decode the token to get employee details
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         if (!decoded) {
-             return res.status(400).json({
-                 statusCode: 400,
-                 statusValue: "FAIL",
-                 message: "Invalid token",
-             });
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Invalid token",
+            });
         }
-        
-        const loggedInUser = await employeeModel.findOne({employeeId:decoded.employeeId},{employeeName:1, employeeId:1, email:1})
+
+        const loggedInUser = await employeeModel.findOne({ employeeId: decoded.employeeId }, { employeeName: 1, employeeId: 1, email: 1 })
         // Check leave data
         const leaveData = await leaveTakenHistoryModel.findOne({ _id: req.params.id });
         if (!leaveData) {
@@ -783,7 +790,7 @@ const actionForLeavApplication = async (req, res) => {
             // Update employee's leave balance
             const updateLeaveBalance = await employeeModel.findOneAndUpdate(
                 { employeeId: leaveData.employeeId },
-                { $set: { [`leaveBalance.${leaveType}`]: updatedBalance } }  
+                { $set: { [`leaveBalance.${leaveType}`]: updatedBalance } }
             );
 
             if (!updateLeaveBalance) {
@@ -802,7 +809,7 @@ const actionForLeavApplication = async (req, res) => {
                 status: req.body.status,
                 approvedDateTime: dateTime,
                 approvedBy: getUser.employeeId,
-                remarks:`Action taken by ${loggedInUser.employeeName}`
+                remarks: `Action taken by ${loggedInUser.employeeName}`
             }
         );
 
@@ -848,7 +855,7 @@ const revertLeaveReq = async (req, res) => {
         }
         // console.log(req.body)
         // Check leave data
-        const leaveData = await leaveTakenHistoryModel.findOne({ _id: id }, {_id:1, employeeId:1, totalDays:1, leaveType:1});
+        const leaveData = await leaveTakenHistoryModel.findOne({ _id: id }, { _id: 1, employeeId: 1, totalDays: 1, leaveType: 1 });
         if (!leaveData) {
             return res.status(400).json({
                 statusCode: 400,
@@ -868,7 +875,7 @@ const revertLeaveReq = async (req, res) => {
                 message: "Invalid leave days data.",
             });
         }
-                
+
         // Validate if values are proper numbers
         if (isNaN(revertedDaysFloat) || isNaN(totalDaysFloat)) {
             return res.status(400).json({
@@ -877,7 +884,7 @@ const revertLeaveReq = async (req, res) => {
                 message: "Invalid leave days data.",
             });
         }
-        
+
         // Check if reverted days exceed total leave days
         if (revertedDaysFloat > totalDaysFloat) {
             return res.status(400).json({
@@ -913,7 +920,7 @@ const revertLeaveReq = async (req, res) => {
             return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         };
         const dateTime = getIndiaCurrentDateTime();
-        
+
         const updateDoc = await leaveTakenHistoryModel.findOneAndUpdate(
             { _id: id },
             {
@@ -921,7 +928,7 @@ const revertLeaveReq = async (req, res) => {
                 "revertLeave.revertedDays": revertedDays || "",
                 "revertLeave.status": "Pending",
             },
-            { upsert:true }
+            { upsert: true }
         );
 
         return res.status(200).json({
@@ -956,7 +963,7 @@ const actionForRevertLeaveReq = async (req, res) => {
         const { status } = req.body;
         const id = req.params.id;
 
-        const leaveData = await leaveTakenHistoryModel.findOne({ _id: id }, {_id:1, employeeId:1, totalDays:1, leaveType:1, revertLeave:1});
+        const leaveData = await leaveTakenHistoryModel.findOne({ _id: id }, { _id: 1, employeeId: 1, totalDays: 1, leaveType: 1, revertLeave: 1 });
         if (!leaveData) {
             return res.status(400).json({
                 statusCode: 400,
@@ -971,7 +978,7 @@ const actionForRevertLeaveReq = async (req, res) => {
                 message: "Revert leave already Approved.",
             });
         }
-        
+
         const getUser = await employeeModel.findOne({ employeeId: leaveData.employeeId }, { leaveBalance: 1 });
         if (!getUser) {
             return res.status(400).json({
@@ -998,7 +1005,7 @@ const actionForRevertLeaveReq = async (req, res) => {
             return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         };
         const dateTime = getIndiaCurrentDateTime();
-        
+
         // Extract revertedDays
         const revertedDaysFloat = parseFloat(leaveData.revertLeave?.revertedDays || "0");
         if (isNaN(revertedDaysFloat) || revertedDaysFloat <= 0) {
@@ -1016,7 +1023,7 @@ const actionForRevertLeaveReq = async (req, res) => {
                 "revertLeave.approvedDateTime": dateTime,
                 "revertLeave.status": status,
             },
-            { new: true}
+            { new: true }
         );
         if (status === "Approved") {
             const leaveType = leaveData.leaveType;
@@ -1026,7 +1033,7 @@ const actionForRevertLeaveReq = async (req, res) => {
             const updateLeaveBalance = await employeeModel.findOneAndUpdate(
                 { employeeId: leaveData.employeeId },
                 { $set: { [`leaveBalance.${leaveType}`]: newLeaveBalance } }, // Store as string
-                { new: true}
+                { new: true }
             );
 
             if (!updateLeaveBalance) {
@@ -1042,7 +1049,7 @@ const actionForRevertLeaveReq = async (req, res) => {
             statusValue: "SUCCESS",
             message: "Data updated successfully.",
         });
-        
+
     } catch (error) {
         return res.status(500).json({
             statusCode: 500,
@@ -1056,7 +1063,7 @@ const actionForRevertLeaveReq = async (req, res) => {
 
 const deleteLeavApplication = async (req, res) => {
     try {
-        const updateDoc = await leaveTakenHistoryModel.findOneAndDelete({ _id: req.params.id});
+        const updateDoc = await leaveTakenHistoryModel.findOneAndDelete({ _id: req.params.id });
         if (updateDoc) {
             return res.status(200).json({
                 statusCode: 200,
@@ -1084,7 +1091,7 @@ const deleteLeavApplication = async (req, res) => {
 
 const getLeavesDataAsJson = async (req, res) => {
     try {
-        const jsonData = await leaveTakenHistoryModel.find({_id:{$type:"string"}},{_id:0, createdAt:0, updatedAt:0, __v:0})
+        const jsonData = await leaveTakenHistoryModel.find({ _id: { $type: "string" } }, { _id: 0, createdAt: 0, updatedAt: 0, __v: 0 })
         if (jsonData.length > 0) {
             await leaveTakenHistoryModel.insertMany(jsonData);
         }
@@ -1092,7 +1099,7 @@ const getLeavesDataAsJson = async (req, res) => {
             statusCode: 400,
             statusValue: "FAIL",
             message: "Wrong id || Data not deleted successfully.",
-            data:jsonData
+            data: jsonData
         });
     } catch (error) {
         return res.status(500).json({
@@ -1152,7 +1159,7 @@ const actionForRegularization = async (req, res) => {
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
             const date = new Date(indiaTime);
-   
+
             const pad = (n) => (n < 10 ? `0${n}` : n);
 
             const year = date.getFullYear();
@@ -1167,7 +1174,7 @@ const actionForRegularization = async (req, res) => {
 
         const dateTime = getIndiaCurrentDateTime();
         const { status } = req.body;
-        
+
         // check if given req is Pending
         // Check if already Approved
         const isExists = await leaveTakenHistoryModel.findOne({
@@ -1262,7 +1269,7 @@ const actionForRegularization = async (req, res) => {
             statusValue: "FAIL",
             message: error.message,
             error: error.message,
-        });  
+        });
     }
 };
 
@@ -1570,12 +1577,12 @@ const getLeavesTakenByEmpId = async (req, res) => {
                         ],
                     },
                 },
-            },            
+            },
             {
                 $project: {
                     employeeInfo: 1,
                     leaveType: 1,
-                    leaveStartDate: 1, 
+                    leaveStartDate: 1,
                     leaveEndDate: 1,
                     totalDays: 1,
                     reason: 1,
@@ -1596,7 +1603,7 @@ const getLeavesTakenByEmpId = async (req, res) => {
                 },
             },
         ];
-        
+
         const aggResult = await leaveTakenHistoryModel.aggregate(aggregateLogic);
         const totalRecords = aggResult[0]?.metadata[0]?.totalRecords || 0;
         const totalPages = Math.ceil(totalRecords / limitNumber);
@@ -1741,10 +1748,10 @@ const getAllLeaves = async (req, res) => {
                     approvedBy: 1,
                     approvedDateTime: 1,
                     dateTime: 1,
-                    location:1,
-                    remarks:1,
-                    createdAt:1,
-                    updatedAt:1
+                    location: 1,
+                    remarks: 1,
+                    createdAt: 1,
+                    updatedAt: 1
                 },
             },
             {
@@ -1754,9 +1761,9 @@ const getAllLeaves = async (req, res) => {
                 },
             },
         ];
-        
+
         const aggResult = await leaveTakenHistoryModel.aggregate(aggregateLogic);
-        
+
         // console.log('check', aggResult[0]?.metadata)
 
         const totalRecords = aggResult[0]?.metadata[0]?.totalRecords || 0;
@@ -1818,7 +1825,7 @@ const getAllPendingLeaves = async (req, res) => {
         // Extract pagination parameters
         var search = "";
         if (req.query.search && req.query.search !== "undefined") {
-        search = req.query.search;
+            search = req.query.search;
         }
         const pageNumber = parseInt(req.query.page, 10) || 1; // Default page is 1
         const limitNumber = parseInt(req.query.limit, 10) || 20; // Default limit is 20
@@ -1827,7 +1834,7 @@ const getAllPendingLeaves = async (req, res) => {
         // console.log(decoded)
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
         // console.log(getUser)
-        
+
         let searchCondition = {};
         if (search) {
             searchCondition = {
@@ -1917,10 +1924,10 @@ const getAllPendingLeaves = async (req, res) => {
                             ],
                         },
                     },
-                },                
+                },
                 {
                     $project: {
-                        _id:1,
+                        _id: 1,
                         employeeInfo: 1,
                         leaveType: 1,
                         leaveStartDate: 1,
@@ -1931,11 +1938,11 @@ const getAllPendingLeaves = async (req, res) => {
                         approvedBy: 1,
                         approvedDateTime: 1,
                         dateTime: 1,
-                        location:1,
-                        remarks:1,
-                        createdAt:1,
-                        updatedAt:1,
-                        revertLeave:1
+                        location: 1,
+                        remarks: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        revertLeave: 1
                     },
                 },
                 {
@@ -2034,11 +2041,11 @@ const getAllPendingLeaves = async (req, res) => {
                         approvedBy: 1,
                         approvedDateTime: 1,
                         dateTime: 1,
-                        location:1,
-                        remarks:1,
-                        updatedAt:1,
-                        createdAt:1,
-                        revertLeave:1
+                        location: 1,
+                        remarks: 1,
+                        updatedAt: 1,
+                        createdAt: 1,
+                        revertLeave: 1
                     },
                 },
                 {
@@ -2052,9 +2059,9 @@ const getAllPendingLeaves = async (req, res) => {
         } else if (getUser.role == "Super-Admin") {
             aggregateLogic = [
                 {
-                  $match: {
-                    approvedBy: getUser.employeeId,
-                  },
+                    $match: {
+                        approvedBy: getUser.employeeId,
+                    },
                 },
                 {
                     $lookup: {
@@ -2137,11 +2144,11 @@ const getAllPendingLeaves = async (req, res) => {
                         approvedBy: 1,
                         approvedDateTime: 1,
                         dateTime: 1,
-                        location:1,
-                        remarks:1,
-                        updatedAt:1,
-                        createdAt:1,
-                        revertLeave:1
+                        location: 1,
+                        remarks: 1,
+                        updatedAt: 1,
+                        createdAt: 1,
+                        revertLeave: 1
                     },
                 },
                 {
@@ -2158,8 +2165,8 @@ const getAllPendingLeaves = async (req, res) => {
 
         const totalRecords = aggResult[0]?.metadata[0]?.totalRecords || 0;
         const totalPages = Math.ceil(totalRecords / limitNumber);
-        
-        
+
+
         if (totalRecords > 0) {
             return res.status(200).json({
                 statusCode: 200,
@@ -2292,12 +2299,12 @@ const getAllPendingCompoff = async (req, res) => {
                         employeeInfo: 1,
                         appliedDate: 1,
                         compOffDate: 1,
-                        reason: 1, 
+                        reason: 1,
                         status: 1,
                         comments: 1,
                         totalDays: 1,
-                        createdAt:1,
-                        updatedAt:1
+                        createdAt: 1,
+                        updatedAt: 1
                     },
                 },
                 {
@@ -2377,12 +2384,12 @@ const getAllPendingCompoff = async (req, res) => {
                         employeeInfo: 1,
                         appliedDate: 1,
                         compOffDate: 1,
-                        reason: 1, 
+                        reason: 1,
                         status: 1,
                         comments: 1,
                         totalDays: 1,
-                        createdAt:1,
-                        updatedAt:1
+                        createdAt: 1,
+                        updatedAt: 1
                     },
                 },
                 {
@@ -2462,12 +2469,12 @@ const getAllPendingCompoff = async (req, res) => {
                         employeeInfo: 1,
                         appliedDate: 1,
                         compOffDate: 1,
-                        reason: 1, 
+                        reason: 1,
                         status: 1,
                         comments: 1,
                         totalDays: 1,
-                        createdAt:1,
-                        updatedAt:1
+                        createdAt: 1,
+                        updatedAt: 1
                     },
                 },
                 {
@@ -2548,88 +2555,88 @@ const getOwnCompoffHistory = async (req, res) => {
         // console.log('check-user', decoded)
         // check Role
         let aggregateLogic;
-            aggregateLogic = [
-                {
-                    $match: {
-                        employeeId: getUser.employeeId,
-                    },
+        aggregateLogic = [
+            {
+                $match: {
+                    employeeId: getUser.employeeId,
                 },
-                {
-                    $lookup: {
-                        from: "employees",
-                        localField: "employeeId",
-                        foreignField: "employeeId",
-                        as: "employeeInfo",
-                    },
+            },
+            {
+                $lookup: {
+                    from: "employees",
+                    localField: "employeeId",
+                    foreignField: "employeeId",
+                    as: "employeeInfo",
                 },
-                {
-                    $unwind: {
-                        path: "$employeeInfo",
-                        preserveNullAndEmptyArrays: false,
-                    },
+            },
+            {
+                $unwind: {
+                    path: "$employeeInfo",
+                    preserveNullAndEmptyArrays: false,
                 },
-                {
-                    $addFields: {
-                        statusPriority: {
-                            $switch: {
-                                branches: [
-                                    { case: { $eq: ["$status", "Pending"] }, then: 1 },
-                                    { case: { $eq: ["$status", "Approved"] }, then: 2 },
-                                    { case: { $eq: ["$status", "Rejected"] }, then: 3 },
-                                ],
-                                default: 4, // Fallback priority for unexpected statuses
-                            },
-                        },
-                    },
-                },
-                {
-                    $sort: { statusPriority: 1, createdAt: -1 },
-                },
-                {
-                    $replaceRoot: {
-                        newRoot: {
-                            $mergeObjects: [
-                                "$$ROOT",
-                                {
-                                    employeeInfo: {
-                                        employeeName: "$employeeInfo.employeeName",
-                                        employeeCode: "$employeeInfo.employeeCode",
-                                        employeeId: "$employeeInfo.employeeId",
-                                        gender: "$employeeInfo.gender",
-                                        departmentId: "$employeeInfo.departmentId",
-                                        designation: "$employeeInfo.designation",
-                                        doj: "$employeeInfo.doj",
-                                        employmentType: "$employeeInfo.employmentType",
-                                        employeeStatus: "$employeeInfo.employeeStatus",
-                                        contactNo: "$employeeInfo.contactNo",
-                                        email: "$employeeInfo.email",
-                                        managerId: "$employeeInfo.managerId",
-                                        leaveBalance: "$employeeInfo.leaveBalance",
-                                        role: "$employeeInfo.role",
-                                    },
-                                },
+            },
+            {
+                $addFields: {
+                    statusPriority: {
+                        $switch: {
+                            branches: [
+                                { case: { $eq: ["$status", "Pending"] }, then: 1 },
+                                { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                { case: { $eq: ["$status", "Rejected"] }, then: 3 },
                             ],
+                            default: 4, // Fallback priority for unexpected statuses
                         },
                     },
                 },
-                {
-                    $project: {
-                        employeeInfo: 1,
-                        appliedDate: 1,
-                        compOffDate: 1,
-                        reason: 1, 
-                        status: 1,
-                        comments: 1,
-                        totalDays: 1,
+            },
+            {
+                $sort: { statusPriority: 1, createdAt: -1 },
+            },
+            {
+                $replaceRoot: {
+                    newRoot: {
+                        $mergeObjects: [
+                            "$$ROOT",
+                            {
+                                employeeInfo: {
+                                    employeeName: "$employeeInfo.employeeName",
+                                    employeeCode: "$employeeInfo.employeeCode",
+                                    employeeId: "$employeeInfo.employeeId",
+                                    gender: "$employeeInfo.gender",
+                                    departmentId: "$employeeInfo.departmentId",
+                                    designation: "$employeeInfo.designation",
+                                    doj: "$employeeInfo.doj",
+                                    employmentType: "$employeeInfo.employmentType",
+                                    employeeStatus: "$employeeInfo.employeeStatus",
+                                    contactNo: "$employeeInfo.contactNo",
+                                    email: "$employeeInfo.email",
+                                    managerId: "$employeeInfo.managerId",
+                                    leaveBalance: "$employeeInfo.leaveBalance",
+                                    role: "$employeeInfo.role",
+                                },
+                            },
+                        ],
                     },
                 },
-                {
-                    $facet: {
-                        metadata: [{ $count: "totalRecords" }],
-                        data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
-                    },
+            },
+            {
+                $project: {
+                    employeeInfo: 1,
+                    appliedDate: 1,
+                    compOffDate: 1,
+                    reason: 1,
+                    status: 1,
+                    comments: 1,
+                    totalDays: 1,
                 },
-            ];
+            },
+            {
+                $facet: {
+                    metadata: [{ $count: "totalRecords" }],
+                    data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                },
+            },
+        ];
 
         const aggResult = await CompOff.aggregate(aggregateLogic);
         // console.log('check', aggResult[0]?.metadata)

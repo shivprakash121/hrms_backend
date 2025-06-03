@@ -230,7 +230,6 @@ app.get("/api/get-json", (req, res) => {
     });
 });
 
-
 // startUpdateAttendanceCronJob();
 startRemoveAttendanceDuplicateRecords();
 
@@ -297,7 +296,7 @@ cron.schedule("30 0 * * *", async () => {
             leaveType: "regularized",
             status: "Pending",
         });
-
+        
         for (const regReq of regularizationRequests) {
             // Approve the regularization request
             const updatedReq = await leaveTakenHistoryModel.findByIdAndUpdate(
@@ -309,10 +308,10 @@ cron.schedule("30 0 * * *", async () => {
                 },
                 { new: true }
             );
-
+             
             // Update the employee's leave balance only if maxRegularization is less than or equal to 2
             const employee = await employeeModel.findOne({ employeeId: regReq.employeeId });
-
+            
             if (employee && parseInt(employee.maxRegularization) <= 2) {
                 await employeeModel.updateOne(
                     { employeeId: regReq.employeeId },
@@ -325,23 +324,22 @@ cron.schedule("30 0 * * *", async () => {
                     }
                 );
             }
-
+            
             console.log(
                 `Regularization request approved for employee ID: ${regReq.employeeId}`
             );
         }
-
         console.log("Cron job completed successfully.");
     } catch (error) {
         console.error("Error during cron job execution:", error);
     }
 });
 
+
 // run cron job daily at mid night 12:35 for auto approved shortLeave req
 cron.schedule("35 0 * * *", async () => {
     try {
         console.log("Running auto-approval cron job...");
-
         // Get the date 3 days ago as an ISO string
         const threeDaysAgo = moment().subtract(3, "days").startOf("day").toISOString();
 
@@ -386,8 +384,6 @@ cron.schedule("35 0 * * *", async () => {
 });
 
 
-
-// Cron job for getting 1 maxShortLeave and 2 maxRegularization 
 // Schedule a cron job to run at midnight on the first day of every month
 cron.schedule('40 0 1 * *', async () => {
     console.log('Running cron job to reset maxRegularization and maxShortLeave...');
@@ -402,7 +398,7 @@ cron.schedule('40 0 1 * *', async () => {
                 }
             }
         );
-
+        
         console.log(`Successfully updated maxRegularization and maxShortLeave for ${result.modifiedCount} employees.`);
     } catch (error) {
         console.error('Error updating maxRegularization and maxShortLeave:', error);
