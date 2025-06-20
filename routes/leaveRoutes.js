@@ -24,6 +24,11 @@ router.get('/get-all-json-leaves', leaveController.getLeavesDataAsJson);   // fo
 // for apply regularization
 router.post('/apply-for-regularization/:employeeId', authMiddleware, leaveController.applyForRegularization);
 
+router.post('/apply-for-vendor-meeting/:employeeId', authMiddleware, leaveController.applyForVendorMeeting);
+router.put('/action-for-vendor-meeting/:id', authMiddleware, leaveController.actionForVendorMeeting);
+router.get('/get-all-vendor-meeting-logs', authMiddleware, leaveController.getAllVendorMeetingLogs);
+router.get('/get-all-vendor-meeting-logs/:employeeId', authMiddleware, leaveController.getVendorMeetingByUserId);
+
 // req for compoff
 router.post('/generate-compoff/:employeeId', authMiddleware, leaveController.requestCompOff);
 router.get('/get-all-pending-compoff', authMiddleware, leaveController.getAllPendingCompoff);

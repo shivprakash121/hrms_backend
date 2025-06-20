@@ -681,7 +681,7 @@ const generateUninformedLeave = async (req, res) => {
     // Step 1: Store other leave types in a Map
     updatedLeaves.forEach(leave => {
       const key = `${leave.employeeId}`;
-
+      
       if (leave.leaveType !== "uninformedLeave") {
         if (!leaveMap.has(key)) leaveMap.set(key, []);
         leaveMap.get(key).push({
@@ -1814,8 +1814,8 @@ const removeDuplicateLogs = async (req, res) => {
 
 const createAttendanceLogForOutDuty = async (req, res) => {
   try {
-    const { employeeId, location } = req.body;
-
+    const { employeeId, location, imageUrl } = req.body;
+    
     // Validate required fields
     if (!employeeId && !location) {
       return res.status(400).json({
@@ -1826,7 +1826,7 @@ const createAttendanceLogForOutDuty = async (req, res) => {
     }
 
     const now = moment().tz("Asia/Kolkata");
-    const AttendanceDate = moment().tz("Asia/Kolkata").startOf("day").toDate();
+    const AttendanceDate = now.toDate();
     const formattedCheckIn = now.format("YYYY-MM-DD HH:mm:ss");
     const OutTime = now.format("YYYY-MM-DD") + " 23:59:00" // print 2025-03-26 HH:mm:ss
     const PunchRecords = `${now.format("HH:mm")}:in(IN),`;
@@ -1839,7 +1839,7 @@ const createAttendanceLogForOutDuty = async (req, res) => {
         $lt: moment(AttendanceDate).add(1, "day").toDate() // Next day's start (exclusive)
       }
     });
-
+    
     if (existingLog) {
       return res.status(400).json({
         statusCode: 400,
@@ -1847,7 +1847,7 @@ const createAttendanceLogForOutDuty = async (req, res) => {
         message: "Attendance log already exists for today"
       });
     }
-
+    
     // Create a new attendance log
     const newLog = new attendanceLogModelForOutDuty({
       employeeId,
@@ -1856,11 +1856,11 @@ const createAttendanceLogForOutDuty = async (req, res) => {
       InTime: formattedCheckIn,
       PunchRecords,
       OutTime,
-      imageUrl: "NA",
+      imageUrl: imageUrl ? imageUrl : "NA",
       createdAt: now.toDate(),
-      updatedAt: now.toDate()
+      updatedAt: now.toDate(),
     });
-
+    
     // Save to database
     await newLog.save();
 
@@ -1911,7 +1911,7 @@ const punchOutForOutDuty = async (req, res) => {
         message: "Attendance log not found or invalid ID"
       });
     }
-
+    
     // Append the punch-out time to PunchRecords
     const updatedPunchRecords = existingLog.PunchRecords
       ? `${existingLog.PunchRecords}${punchOutRecord},`
@@ -1928,7 +1928,7 @@ const punchOutForOutDuty = async (req, res) => {
       },
       { new: true } // Returns the updated document
     );
-
+    
     return res.status(200).json({
       message: "Punch-out recorded successfully",
       statusCode: 200,
@@ -1946,8 +1946,76 @@ const punchOutForOutDuty = async (req, res) => {
 };
 
 
-const getAttendanceLogForOutDutyById = async (req, res) => {
+const updateLocation = async (req, res) => {
   try {
+    const { id } = req.params;
+    const { location } = req.body;
+
+    // Validate required fields
+    if (!id || !location) {
+      return res.status(400).json({
+        message: "Id and location are required",
+        statusCode: 400,
+        statusValue: "error"
+      });
+    }
+
+    // Fetch existing log
+    const existingLog = await attendanceLogModelForOutDuty.findById(id);
+    if (!existingLog) {
+      return res.status(404).json({
+        statusCode: 404,
+        statusValue: "FAIL",
+        message: "Attendance log not found or invalid ID"
+      });
+    }
+
+    // Extract and split existing locations
+    const existingLocations = existingLog.location
+      ? existingLog.location.split("||")
+      : [];
+
+    // Check for duplication
+    if (existingLocations.includes(location)) {
+      return res.status(200).json({
+        message: "Location already exists. No update made.",
+        statusCode: 200,
+        statusValue: "info",
+        data: existingLog
+      });
+    }
+
+    // Append new location
+    const updatedLocation = existingLocations.length
+      ? `${existingLog.location}||${location}`
+      : location;
+
+    // Update the location field
+    const updatedLog = await attendanceLogModelForOutDuty.findByIdAndUpdate(
+      id,
+      { $set: { location: updatedLocation } },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      message: "Location updated successfully",
+      statusCode: 200,
+      statusValue: "success",
+      data: updatedLog
+    });
+  } catch (error) {
+    console.error("Error updating location:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      statusCode: 500,
+      statusValue: "error"
+    });
+  }
+};
+
+
+const getAttendanceLogForOutDutyById = async (req, res) => {
+  try { 
     const { employeeId } = req.params;
 
     // Validate required fields
@@ -1958,7 +2026,7 @@ const getAttendanceLogForOutDutyById = async (req, res) => {
         statusValue: "error"
       });
     }
-
+    
     // Get current date & time in India Standard Time (IST)
     const now = moment().tz("Asia/Kolkata");
 
@@ -1978,6 +2046,43 @@ const getAttendanceLogForOutDutyById = async (req, res) => {
       message: "Attendance log created successfully",
       statusCode: 201,
       statusValue: "success",
+      data: dataRecords
+    });
+  } catch (error) {
+    console.error("Error creating attendance log:", error);
+    return res.status(500).json({
+      message: "Internal Server Error",
+      statusCode: 500,
+      statusValue: "error"
+    });
+  }
+};
+
+
+const getAllPunchRecordsForOutDuty = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    // Validate required fields
+    if (!employeeId) {
+      return res.status(400).json({
+        message: "employeeId is required",
+        statusCode: 400,
+        statusValue: "error"
+      });
+    }
+
+    const dataRecords = await attendanceLogModelForOutDuty.find({employeeId}).sort({createdAt:-1});
+    if (dataRecords.length < 1) {
+      return res.status(400).json({
+        message: "Attendance log not found.",
+        statusCode: 400,
+        statusValue: "FAIL"
+      });
+    }
+    return res.status(201).json({
+      message: "Attendance log fetched successfully",
+      statusCode: 200,
+      statusValue: "SUCCESS",
       data: dataRecords
     });
   } catch (error) {
@@ -2046,12 +2151,13 @@ const createEmployeeSalary = async (req, res) => {
       } = {},
     } = req.body;
     console.log(req.body)
+    
     // Check for duplicate entry
     const existingSalary = await employeeSalaryModel.findOne({
       pay_slip_month,
       "employee_basic_details.employee_code": employee_code,
     });
-
+    
     if (existingSalary) {
       return res.status(400).json({
         message: "Salary record already exists for this employee and month",
@@ -2059,10 +2165,10 @@ const createEmployeeSalary = async (req, res) => {
         statusValue: "FAIL",
       });
     }
-
+    
     // Create new employee salary record
     const newSalary = await employeeSalaryModel.create(req.body);
-
+   
     return res.status(201).json({
       message: "Employee salary record created successfully",
       statusCode: 201,
@@ -2202,5 +2308,7 @@ module.exports = {
   generateUninformedLeave,
   approvedPendingLeaves,
   createEmployeeSalary,
-  getAllEmployeeSalaries
+  getAllEmployeeSalaries,
+  getAllPunchRecordsForOutDuty,
+  updateLocation
 };

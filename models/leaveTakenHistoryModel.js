@@ -7,7 +7,7 @@ const leaveTakenHistorySchema = new mongoose.Schema({
   },
   leaveType: {
     type: String,
-    enum: ["casualLeave", "medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "compOffLeave", "regularized", "shortLeave", "uninformedLeave", "optionalLeave"],
+    enum: ["casualLeave", "medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "compOffLeave", "regularized", "shortLeave", "uninformedLeave", "optionalLeave", "vendor-meeting"],
     required: true,
   },
   leaveStartDate: { 
@@ -61,6 +61,11 @@ const leaveTakenHistorySchema = new mongoose.Schema({
   dateTime:{ type: String, default:"" },  
   createdAt: { type: Date, default: Date.now }, 
   updatedAt: { type: Date, default: Date.now }, 
+  duration: {
+    type: String,
+    default: "0"
+  }
 });
+
 
 module.exports = mongoose.model("leaveTakenHistory", leaveTakenHistorySchema);

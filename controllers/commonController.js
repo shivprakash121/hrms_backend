@@ -9,8 +9,9 @@ const blacklist = require("../utils/blacklist");
 const leaveTakenHistoryModel = require("../models/leaveTakenHistoryModel");
 const holidaysModel = require("../models/holidayModel");
 const eventModel = require("../models/eventModel");
+const AttendanceLogModel = require("../models/attendanceLogModel");
 // console.log(process.env.JWT_SECRET)
-
+const moment = require('moment');
 
 
 const addNewHoliday = async (req, res) => {
@@ -289,10 +290,10 @@ const addNewEvent = async (req, res) => {
             dateTime: req.body.dateTime,
             imageUrl: req.body.imageUrl,
         });
-
+        
         // Save the event in MongoDB
         const savedEvent = await newEvent.save();
-
+        
         if (savedEvent) {
             return res.status(201).json({
                 statusCode: 201,
@@ -310,6 +311,7 @@ const addNewEvent = async (req, res) => {
         });
     }
 };
+
 
 const getEventList = async (req, res) => {
     try {
@@ -339,6 +341,8 @@ const getEventList = async (req, res) => {
         });
     }
 }
+
+
 
 
 const deleteEvent = async (req, res) => {
@@ -382,6 +386,146 @@ const deleteEvent = async (req, res) => {
 }
 
 
+const getEmpDataCount = async (req, res) => {
+    try {
+        // check already added or not
+        const totalEmpCount = await employeeModel.find({accountStatus:"Active"})
+
+        const newEmpCount = await employeeModel.find({accountStatus:"Active", isProbation: true})
+        const noticePeriodEmpCount = await employeeModel.find({accountStatus:"Active", isNotice:true})
+        const inHouseEmpCount = await employeeModel.find({accountStatus:"Active", isInhouse:true})
+        const fieldEmpCount = await employeeModel.find({accountStatus:"Active", isInhouse:false})
+        
+        if (totalEmpCount.length < 1) {
+            return res.status(404).json({
+                statusCode: 404,
+                statusValue: "FAIL",
+                message: "data not found",
+            });
+        }
+        
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Holidays list get successfully.",
+            data: {
+                totalEmployeeCount: totalEmpCount.length,
+                newEmployeeCount: newEmpCount.length,
+                employeeOnNoticePeriod: noticePeriodEmpCount.length,
+                inHouseEmpCount: inHouseEmpCount.length,
+                fieldEmpCount: fieldEmpCount.length,
+            }
+        });
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+}
+
+
+const getEmpAttendanceCount = async (req, res) => {
+    try {
+        const startDate = new Date("2025-01-01T00:00:00.000Z");
+        const endDate = moment().endOf("month").toDate();
+
+        const result = await AttendanceLogModel.aggregate([
+            // Step 1: Match from Jan-2025 till now
+            {
+                $match: {
+                    AttendanceDate: { $gte: startDate, $lte: endDate },
+                    $expr: {
+                        $in: [
+                            { $trim: { input: "$Status" } },
+                            ["Present", "Absent"]
+                        ]
+                    }
+                }
+            },
+            // Step 2: Add duration (month) and dateOnly
+            {
+                $addFields: {
+                    duration: {
+                        $dateToString: { format: "%b-%Y", date: "$AttendanceDate" }
+                    },
+                    dateOnly: {
+                        $dateToString: { format: "%Y-%m-%d", date: "$AttendanceDate" }
+                    },
+                    status: { $trim: { input: "$Status" } }
+                }
+            },
+            // Step 3: Group by date and count present/absent for that day 
+            {
+                $group: {
+                    _id: {
+                        duration: "$duration", 
+                        dateOnly: "$dateOnly"
+                    },
+                    presentCount: {
+                        $sum: {
+                            $cond: [{ $eq: ["$status", "Present"] }, 1, 0]
+                        }
+                    },
+                    absentCount: {
+                        $sum: {
+                            $cond: [{ $eq: ["$status", "Absent"] }, 1, 0]
+                        }
+                    }
+                }
+            },
+            // Step 4: Group by month to get max present and absent counts
+            {
+                $group: {
+                    _id: "$_id.duration",
+                    presentCount: { $max: "$presentCount" },
+                    absentCount: { $max: "$absentCount" }
+                }
+            },
+            // Step 5: Format result
+            {
+                $project: {
+                    _id: 0,
+                    duration: "$_id",
+                    presentCount: 1,
+                    absentCount: 1
+                }
+            },
+            // Step 6: Sort by month
+            {
+                $addFields: {
+                    sortKey: {
+                        $dateFromString: {
+                            dateString: { $concat: ["01-", "$duration"] },
+                            format: "%d-%b-%Y"
+                        }
+                    }
+                }
+            },
+            { $sort: { sortKey: 1 } },
+            { $project: { sortKey: 0 } }
+        ]);
+
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Holidays list get successfully.",
+            data: result
+        });
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+}
+
+
+
 
 module.exports = {
     addNewHoliday,
@@ -391,5 +535,7 @@ module.exports = {
     addNewEvent,
     getEventList,
     deleteEvent,
-    updateEventById
+    updateEventById,
+    getEmpDataCount,
+    getEmpAttendanceCount
 }

@@ -163,7 +163,7 @@ const applyLeave = async (req, res) => {
             status: "Pending",
             leaveType: leaveType  // Ensure comparison is done correctly
         });
-
+        
         // Calculate total pending leave balance
         let totalPendingLeaveBal = leaveHistory.reduce((sum, leave) => sum + Number(leave.totalDays), 0);
         totalPendingLeaveBal += Number(req.body.totalDays);
@@ -426,6 +426,235 @@ const applyForRegularization = async (req, res) => {
         });
     }
 }
+
+
+const applyForVendorMeeting = async (req, res) => {
+    try {
+        const schema = Joi.object({
+            leaveType: Joi.string().valid("vendor-meeting").required(),
+            leaveStartDate: Joi.string().required(),
+            reason: Joi.string().required(),
+            approvedBy: Joi.string().allow("").optional(),
+            duration:Joi.string().required(),
+        });
+        let result = schema.validate(req.body);
+        // console.log(req.body) 
+        if (result.error) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: result.error.details[0].message,
+            });
+        }
+
+        // Extract the token from the Authorization header
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Token is required",
+            });
+        }
+        // Decode the token to get employee details
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Invalid token",
+            });
+        }
+        const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
+        
+        let { leaveStartDate, reason, approvedBy, leaveType, duration } = req.body;
+        console.log('body-data: ', req.body)
+        if (duration === ".5" || duration === "0.5") {
+            duration == "270"
+        } else if (duration === "1" || duration === "1.0") {
+            duration == "540" 
+        }
+        // get current date and time
+        const getIndiaCurrentDateTime = () => {
+            const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+            const date = new Date(indiaTime);
+            
+            const pad = (n) => (n < 10 ? `0${n}` : n);
+            
+            const year = date.getFullYear();
+            const month = pad(date.getMonth() + 1); // Months are 0-based
+            const day = pad(date.getDate());
+            const hours = pad(date.getHours());
+            const minutes = pad(date.getMinutes());
+            const seconds = pad(date.getSeconds());
+
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        };
+        
+        const dateTime = getIndiaCurrentDateTime()
+        // check attendance for employee
+        const checkAttendance = await AttendanceLogModel.findOne({
+            $and: [
+                { AttendanceDate: new Date(req.body.leaveStartDate) },
+                { EmployeeCode: req.params.employeeId },
+            ]
+        })
+        // console.log(checkAttendance.Status)
+        if (!checkAttendance) {
+            return res.status(400).json({
+                message: "We don't have your attendance log on this date.",
+                statusCode: 400,
+                statusValue: "false",
+            });
+        }
+        // console.log(12, checkAttendance)
+        const bodyDoc = new leaveTakenHistoryModel({
+            employeeId: req.params.employeeId,
+            leaveType: leaveType,
+            leaveStartDate: leaveStartDate,
+            leaveEndDate: leaveStartDate,
+            totalDays: "1",
+            reason: reason,
+            approvedBy: getUser.managerId,
+            status: "Pending",
+            dateTime: dateTime,
+            duration: duration
+        })
+        
+        const saveDoc = await bodyDoc.save();
+        if (saveDoc) {
+            return res.status(201).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Leave applied successfully.",
+            });
+        }
+        return res.status(400).json({
+            message: "You have provided wrong id",
+            statusCode: 400,
+            statusValue: "FAIL",
+        });
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+}
+
+
+const actionForVendorMeeting = async (req, res) => {
+    try {
+        const schema = Joi.object({
+            status: Joi.string().valid("Approved", "Rejected", "Pending").required(),
+        });
+        let result = schema.validate(req.body);
+        // console.log(req.body) 
+        if (result.error) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: result.error.details[0].message,
+            });
+        }
+
+        // Extract the token from the Authorization header
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Token is required",
+            });
+        }
+        // Decode the token to get employee details
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Invalid token",
+            });
+        }
+        const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
+
+        let { status } = req.body;
+        // get current date and time
+        const getIndiaCurrentDateTime = () => {
+            const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+            const date = new Date(indiaTime);
+
+            const pad = (n) => (n < 10 ? `0${n}` : n);
+
+            const year = date.getFullYear();
+            const month = pad(date.getMonth() + 1); // Months are 0-based
+            const day = pad(date.getDate());
+            const hours = pad(date.getHours());
+            const minutes = pad(date.getMinutes());
+            const seconds = pad(date.getSeconds());
+
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        };
+
+        const dateTime = getIndiaCurrentDateTime()
+        const updateDoc = await leaveTakenHistoryModel.findOneAndUpdate(
+            { _id: req.params.id },
+            {
+                approvedBy: getUser.employeeId,
+                status: status,
+                approvedDateTime: dateTime
+            }
+        )
+
+        if (status === "Approved") {
+            const leaveDate = new Date(updateDoc.leaveStartDate);
+            leaveDate.setUTCHours(0, 0, 0, 0); // Ensure match on exact date
+
+            const data1 = await AttendanceLogModel.findOneAndUpdate(
+                {
+                    EmployeeCode: updateDoc.employeeId,
+                    AttendanceDate: leaveDate,
+                },
+                {
+                    Status: "Present",
+                    Duration: updateDoc.duration,
+                },
+                {
+                    new: true,
+                }
+            );
+            
+            if (data1) {
+                console.log("Attendance log updated:", data1);
+            } else {
+                console.log("No matching attendance log found to update.");
+            }
+        }
+
+        if (updateDoc) {
+            return res.status(201).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Data updated successfully.",
+            });
+        }
+        return res.status(400).json({
+            message: "You have provided wrong id",
+            statusCode: 400,
+            statusValue: "FAIL",
+        });
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message,
+            error: error.message,
+        });
+    }
+}
+
 
 
 const requestCompOff = async (req, res) => {
@@ -1800,6 +2029,597 @@ const getAllLeaves = async (req, res) => {
 };
 
 
+const getAllVendorMeetingLogs = async (req, res) => {
+    try {
+        // Extract the token from the Authorization header
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Token is required",
+            });
+        }
+
+        // Decode the token to get employee details
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Invalid token",
+            });
+        }
+
+        // Extract pagination parameters
+        var search = "";
+        if (req.query.search && req.query.search !== "undefined") {
+            search = req.query.search;
+        }
+        const pageNumber = parseInt(req.query.page, 10) || 1; // Default page is 1
+        const limitNumber = parseInt(req.query.limit, 10) || 20; // Default limit is 20
+        const skip = (pageNumber - 1) * limitNumber;
+
+        // console.log(decoded)
+        const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
+        // console.log(getUser)
+
+        let searchCondition = {};
+        if (search) {
+            searchCondition = {
+                $or: [
+                    { "employeeInfo.employeeCode": { $regex: search.split("").join(".*"), $options: "i" } }, // Character search
+                    { "employeeInfo.employeeName": { $regex: search.split("").join(".*"), $options: "i" } },  // Character search
+                    { "employeeInfo.email": { $regex: search.split("").join(".*"), $options: "i" } },           // Character search
+                    { "status": { $regex: search.split("").join(".*"), $options: "i" } }
+                ]
+            };
+        }
+
+        let aggregateLogic;
+        if (getUser.role == "Manager") {
+            // console.log(true)
+            aggregateLogic = [
+                {
+                    $match: {
+                        approvedBy: getUser.employeeId,
+                        leaveType: "vendor-meeting"
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "employees",
+                        localField: "employeeId",
+                        foreignField: "employeeId",
+                        as: "employeeInfo",
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$employeeInfo",
+                        preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
+                    },
+                },
+                {
+                    $match: searchCondition, // Apply character search filter
+                },
+                {
+                    $addFields: {
+                        statusPriority: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ["$status", "Pending"] }, then: 1 },
+                                    // { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                    // { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+                                ],
+                                default: 4, // Fallback priority for unexpected statuses
+                            },
+                        },
+                    },
+                },
+                {
+                    $sort: { statusPriority: 1, updatedAt: -1 },
+                },
+                {
+                    $replaceRoot: {
+                        newRoot: {
+                            $mergeObjects: [
+                                { _id: "$_id" },  // Ensure original _id is explicitly retained
+                                "$$ROOT",
+                                {
+                                    employeeInfo: {
+                                        employeeName: "$employeeInfo.employeeName",
+                                        employeeCode: "$employeeInfo.employeeCode",
+                                        employeeId: "$employeeInfo.employeeId",
+                                        gender: "$employeeInfo.gender",
+                                        // departmentId: "$employeeInfo.departmentId",
+                                        // designation: "$employeeInfo.designation",
+                                        // doj: "$employeeInfo.doj",
+                                        // employmentType: "$employeeInfo.employmentType",
+                                        // employeeStatus: "$employeeInfo.employeeStatus",
+                                        // accountStatus: "$employeeInfo.accountStatus",
+                                        // residentialAddress: "$employeeInfo.residentialAddress",
+                                        // permanentAddress: "$employeeInfo.permanentAddress",
+                                        contactNo: "$employeeInfo.contactNo",
+                                        email: "$employeeInfo.email",
+                                        // dob: "$employeeInfo.dob",
+                                        // bloodGroup: "$employeeInfo.bloodGroup",
+                                        // workPlace: "$employeeInfo.workPlace",
+                                        // emergencyContact: "$employeeInfo.emergencyContact",
+                                        // managerId: "$employeeInfo.managerId",
+                                        // leaveBalance: "$employeeInfo.leaveBalance",
+                                        // role: "$employeeInfo.role",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        employeeInfo: 1,
+                        leaveType: 1,
+                        leaveStartDate: 1,
+                        leaveEndDate: 1,
+                        totalDays: 1,
+                        reason: 1,
+                        status: 1,
+                        approvedBy: 1,
+                        approvedDateTime: 1,
+                        dateTime: 1,
+                        location: 1,
+                        remarks: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        revertLeave: 1
+                    },
+                },
+                {
+                    $facet: {
+                        metadata: [{ $count: "totalRecords" }],
+                        data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                    },
+                },
+            ];
+
+        } else if (getUser.role == "HR-Admin" || getUser.role == "Admin") {
+            aggregateLogic = [
+                {
+                  $match: {
+                    // approvedBy: getUser.employeeId,
+                    leaveType: "vendor-meeting"
+                  },
+                },
+                {
+                    $lookup: {
+                        from: "employees",
+                        localField: "employeeId",
+                        foreignField: "employeeId",
+                        as: "employeeInfo",
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$employeeInfo",
+                        preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
+                    },
+                },
+                {
+                    $match: searchCondition, // Apply character search filter
+                },
+                {
+                    $addFields: {
+                        statusPriority: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ["$status", "Pending"] }, then: 1 },
+                                    { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                    { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+                                ],
+                                default: 4, // Fallback priority for unexpected statuses
+                            },
+                        },
+                    },
+                },
+                {
+                    $sort: { statusPriority: 1, createdAt: -1 },
+                },
+                {
+                    $replaceRoot: {
+                        newRoot: {
+                            $mergeObjects: [
+                                { _id: "$_id" },  // Ensure original _id is retained
+                                "$$ROOT",
+                                {
+                                    employeeInfo: {
+                                        employeeName: "$employeeInfo.employeeName",
+                                        employeeCode: "$employeeInfo.employeeCode",
+                                        employeeId: "$employeeInfo.employeeId",
+                                        gender: "$employeeInfo.gender",
+                                        // departmentId: "$employeeInfo.departmentId",
+                                        // designation: "$employeeInfo.designation",
+                                        // doj: "$employeeInfo.doj",
+                                        // employmentType: "$employeeInfo.employmentType",
+                                        // employeeStatus: "$employeeInfo.employeeStatus",
+                                        // accountStatus: "$employeeInfo.accountStatus",
+                                        // residentialAddress: "$employeeInfo.residentialAddress",
+                                        // permanentAddress: "$employeeInfo.permanentAddress",
+                                        contactNo: "$employeeInfo.contactNo",
+                                        email: "$employeeInfo.email",
+                                        // dob: "$employeeInfo.dob",
+                                        // bloodGroup: "$employeeInfo.bloodGroup",
+                                        // workPlace: "$employeeInfo.workPlace",
+                                        // emergencyContact: "$employeeInfo.emergencyContact",
+                                        // managerId: "$employeeInfo.managerId",
+                                        // leaveBalance: "$employeeInfo.leaveBalance",
+                                        // role: "$employeeInfo.role",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+                {
+                    $project: {
+                        employeeInfo: 1,
+                        leaveType: 1,
+                        leaveStartDate: 1,
+                        leaveEndDate: 1,
+                        totalDays: 1,
+                        reason: 1,
+                        status: 1,
+                        approvedBy: 1,
+                        approvedDateTime: 1,
+                        dateTime: 1,
+                        location: 1,
+                        remarks: 1,
+                        updatedAt: 1,
+                        createdAt: 1,
+                        revertLeave: 1
+                    },
+                },
+                {
+                    $facet: {
+                        metadata: [{ $count: "totalRecords" }],
+                        data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                    },
+                },
+            ];
+
+        } else if (getUser.role == "Super-Admin") {
+            aggregateLogic = [
+                {
+                    $match: {
+                        approvedBy: getUser.employeeId,
+                        leaveType: "vendor-meeting" 
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "employees",
+                        localField: "employeeId",
+                        foreignField: "employeeId",
+                        as: "employeeInfo",
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$employeeInfo",
+                        preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
+                    },
+                },
+                {
+                    $match: searchCondition, // Apply character search filter
+                },
+                {
+                    $addFields: {
+                        statusPriority: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ["$status", "Pending"] }, then: 1 },
+                                    { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                    { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+                                ],
+                                default: 4, // Fallback priority for unexpected statuses
+                            },
+                        },
+                    },
+                },
+                {
+                    $sort: { statusPriority: 1, createdAt: -1 },
+                },
+                {
+                    $replaceRoot: {
+                        newRoot: {
+                            $mergeObjects: [
+                                { _id: "$_id" },  // Ensure original _id is retained
+                                "$$ROOT",
+                                {
+                                    employeeInfo: {
+                                        employeeName: "$employeeInfo.employeeName",
+                                        employeeCode: "$employeeInfo.employeeCode",
+                                        employeeId: "$employeeInfo.employeeId",
+                                        gender: "$employeeInfo.gender",
+                                        // departmentId: "$employeeInfo.departmentId",
+                                        // designation: "$employeeInfo.designation",
+                                        // doj: "$employeeInfo.doj",
+                                        // employmentType: "$employeeInfo.employmentType",
+                                        // employeeStatus: "$employeeInfo.employeeStatus",
+                                        // accountStatus: "$employeeInfo.accountStatus",
+                                        // residentialAddress: "$employeeInfo.residentialAddress",
+                                        // permanentAddress: "$employeeInfo.permanentAddress",
+                                        contactNo: "$employeeInfo.contactNo",
+                                        email: "$employeeInfo.email",
+                                        // dob: "$employeeInfo.dob",
+                                        // bloodGroup: "$employeeInfo.bloodGroup",
+                                        // workPlace: "$employeeInfo.workPlace",
+                                        // emergencyContact: "$employeeInfo.emergencyContact",
+                                        // managerId: "$employeeInfo.managerId",
+                                        // leaveBalance: "$employeeInfo.leaveBalance",
+                                        // role: "$employeeInfo.role",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+                {
+                    $project: {
+                        employeeInfo: 1,
+                        leaveType: 1,
+                        leaveStartDate: 1,
+                        leaveEndDate: 1,
+                        totalDays: 1,
+                        reason: 1,
+                        status: 1,
+                        approvedBy: 1,
+                        approvedDateTime: 1,
+                        dateTime: 1,
+                        location: 1,
+                        remarks: 1,
+                        updatedAt: 1,
+                        createdAt: 1,
+                        revertLeave: 1
+                    },
+                },
+                {
+                    $facet: {
+                        metadata: [{ $count: "totalRecords" }],
+                        data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                    },
+                },
+            ];
+        }
+
+        const aggResult = await leaveTakenHistoryModel.aggregate(aggregateLogic);
+        // console.log('check', aggResult[0]?.metadata)
+
+        const totalRecords = aggResult[0]?.metadata[0]?.totalRecords || 0;
+        const totalPages = Math.ceil(totalRecords / limitNumber);
+
+
+        if (totalRecords > 0) {
+            return res.status(200).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Data fetched successfully.",
+                data: aggResult[0].data,
+                totalRecords,
+                totalPages,
+                currentPage: pageNumber,
+                limit: limitNumber
+            });
+        }
+
+        return res.status(404).json({
+            statusCode: 404,
+            statusValue: "FAIL",
+            message: "No data found.",
+            data: []
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: "Internal server error.",
+            error: error.message,
+        });
+    }
+};
+
+
+const getVendorMeetingByUserId = async (req, res) => {
+    try {
+        // Extract the token from the Authorization header
+        const token = req.headers.authorization?.split(" ")[1];
+        if (!token) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Token is required",
+            });
+        }
+
+        // Decode the token to get employee details
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "Invalid token",
+            });
+        }
+
+        // Extract pagination parameters
+        var search = "";
+        if (req.query.search && req.query.search !== "undefined") {
+            search = req.query.search;
+        }
+        const pageNumber = parseInt(req.query.page, 10) || 1; // Default page is 1
+        const limitNumber = parseInt(req.query.limit, 10) || 20; // Default limit is 20
+        const skip = (pageNumber - 1) * limitNumber;
+
+        // console.log(decoded)
+        const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
+        // console.log(getUser)
+
+        let searchCondition = {};
+        if (search) {
+            searchCondition = {
+                $or: [
+                    { "employeeInfo.employeeCode": { $regex: search.split("").join(".*"), $options: "i" } }, // Character search
+                    { "employeeInfo.employeeName": { $regex: search.split("").join(".*"), $options: "i" } },  // Character search
+                    { "employeeInfo.email": { $regex: search.split("").join(".*"), $options: "i" } },           // Character search
+                    { "status": { $regex: search.split("").join(".*"), $options: "i" } }
+                ]
+            };
+        }
+
+        let aggregateLogic = [
+                {
+                    $match: {
+                        employeeId: getUser.employeeId,
+                        leaveType: "vendor-meeting"
+                    },
+                },
+                {
+                    $lookup: {
+                        from: "employees",
+                        localField: "employeeId",
+                        foreignField: "employeeId",
+                        as: "employeeInfo",
+                    },
+                },
+                {
+                    $unwind: {
+                        path: "$employeeInfo",
+                        preserveNullAndEmptyArrays: false, // Ensures no documents with empty employeeInfo are returned
+                    },
+                },
+                {
+                    $match: searchCondition, // Apply character search filter
+                },
+                {
+                    $addFields: {
+                        statusPriority: {
+                            $switch: {
+                                branches: [
+                                    { case: { $eq: ["$status", "Pending"] }, then: 1 },
+                                    // { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                    // { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+                                ],
+                                default: 4, // Fallback priority for unexpected statuses
+                            },
+                        },
+                    },
+                },
+                {
+                    $sort: { statusPriority: 1, updatedAt: -1 },
+                },
+                {
+                    $replaceRoot: {
+                        newRoot: {
+                            $mergeObjects: [
+                                { _id: "$_id" },  // Ensure original _id is explicitly retained
+                                "$$ROOT",
+                                {
+                                    employeeInfo: {
+                                        employeeName: "$employeeInfo.employeeName",
+                                        employeeCode: "$employeeInfo.employeeCode",
+                                        employeeId: "$employeeInfo.employeeId",
+                                        gender: "$employeeInfo.gender",
+                                        // departmentId: "$employeeInfo.departmentId",
+                                        // designation: "$employeeInfo.designation",
+                                        // doj: "$employeeInfo.doj",
+                                        // employmentType: "$employeeInfo.employmentType",
+                                        // employeeStatus: "$employeeInfo.employeeStatus",
+                                        // accountStatus: "$employeeInfo.accountStatus",
+                                        // residentialAddress: "$employeeInfo.residentialAddress",
+                                        // permanentAddress: "$employeeInfo.permanentAddress",
+                                        contactNo: "$employeeInfo.contactNo",
+                                        email: "$employeeInfo.email",
+                                        // dob: "$employeeInfo.dob",
+                                        // bloodGroup: "$employeeInfo.bloodGroup",
+                                        // workPlace: "$employeeInfo.workPlace",
+                                        // emergencyContact: "$employeeInfo.emergencyContact",
+                                        // managerId: "$employeeInfo.managerId",
+                                        // leaveBalance: "$employeeInfo.leaveBalance",
+                                        // role: "$employeeInfo.role",
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                },
+                {
+                    $project: {
+                        _id: 1,
+                        employeeInfo: 1,
+                        leaveType: 1,
+                        leaveStartDate: 1,
+                        leaveEndDate: 1,
+                        totalDays: 1,
+                        reason: 1,
+                        status: 1,
+                        approvedBy: 1,
+                        approvedDateTime: 1,
+                        dateTime: 1,
+                        location: 1,
+                        remarks: 1,
+                        createdAt: 1,
+                        updatedAt: 1,
+                        revertLeave: 1
+                    },
+                },
+                {
+                    $facet: {
+                        metadata: [{ $count: "totalRecords" }],
+                        data: [{ $skip: skip }, { $limit: limitNumber }], // Apply pagination
+                    },
+                },
+            ];
+
+        const aggResult = await leaveTakenHistoryModel.aggregate(aggregateLogic);
+        // console.log('check', aggResult[0]?.metadata)
+
+        const totalRecords = aggResult[0]?.metadata[0]?.totalRecords || 0;
+        const totalPages = Math.ceil(totalRecords / limitNumber);
+
+
+        if (totalRecords > 0) {
+            return res.status(200).json({
+                statusCode: 200,
+                statusValue: "SUCCESS",
+                message: "Data fetched successfully.",
+                data: aggResult[0].data,
+                totalRecords,
+                totalPages,
+                currentPage: pageNumber,
+                limit: limitNumber
+            });
+        }
+
+        return res.status(404).json({
+            statusCode: 404,
+            statusValue: "FAIL",
+            message: "No data found.",
+            data: []
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: "Internal server error.",
+            error: error.message,
+        });
+    }
+};
+
+
+
 const getAllPendingLeaves = async (req, res) => {
     try {
         // Extract the token from the Authorization header
@@ -1854,6 +2674,7 @@ const getAllPendingLeaves = async (req, res) => {
                 {
                     $match: {
                         approvedBy: getUser.employeeId,
+                        leaveType: { $ne: "vendor-meeting" }
                     },
                 },
                 {
@@ -1955,11 +2776,12 @@ const getAllPendingLeaves = async (req, res) => {
 
         } else if (getUser.role == "HR-Admin" || getUser.role == "Admin") {
             aggregateLogic = [
-                // {
-                //   $match: {
-                //     approvedBy: getUser.employeeId,
-                //   },
-                // },
+                {
+                  $match: {
+                    // approvedBy: getUser.employeeId,
+                    leaveType: { $ne: "vendor-meeting" }
+                  },
+                },
                 {
                     $lookup: {
                         from: "employees",
@@ -2061,6 +2883,7 @@ const getAllPendingLeaves = async (req, res) => {
                 {
                     $match: {
                         approvedBy: getUser.employeeId,
+                        leaveType: { $ne: "vendor-meeting" }
                     },
                 },
                 {
@@ -2235,6 +3058,7 @@ const getAllPendingCompoff = async (req, res) => {
                 {
                     $match: {
                         approvedBy: getUser.employeeId,
+                        // leaveType: {$ne:"vendor-meeting"}
                     },
                 },
                 {
@@ -2319,7 +3143,8 @@ const getAllPendingCompoff = async (req, res) => {
             aggregateLogic = [
                 // {
                 //   $match: {
-                //     approvedBy: getUser.employeeId,
+                //     // approvedBy: getUser.employeeId,
+                //     leaveType: {$ne:"vendor-meeting"}
                 //   },
                 // },
                 {
@@ -2405,6 +3230,7 @@ const getAllPendingCompoff = async (req, res) => {
                 {
                     $match: {
                         employeeId: getUser.employeeId,
+                         leaveType: {$ne:"vendor-meeting"}
                     },
                 },
                 {
@@ -2690,5 +3516,9 @@ module.exports = {
     deleteCompOffById,
     revertLeaveReq,
     actionForRevertLeaveReq,
-    getLeavesDataAsJson
+    getLeavesDataAsJson,
+    applyForVendorMeeting,
+    actionForVendorMeeting,
+    getAllVendorMeetingLogs,
+    getVendorMeetingByUserId
 }

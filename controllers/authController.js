@@ -47,14 +47,14 @@ const registerEmployee = async (req, res) => {
             emergencyContact,
             managerId,
             teamLeadId,
-            leaveBalance,
+            // leaveBalance,
             role,
             shiftTime,
             loginPassword,
             pancardNo,
             workingDays
         } = req.body;
-        console.log(req.body)
+        console.log(1111, req.body)
         if ((!email || email == "" || email == null) && (!employeeId || employeeId == "" || employeeId == null)) {
             return res.status(400).json({
                 statusCode: 400,
@@ -102,7 +102,7 @@ const registerEmployee = async (req, res) => {
                 emergencyContact : emergencyContact ? emergencyContact : "NA",
                 managerId : managerId ? managerId : "NA",
                 teamLeadId : teamLeadId ? teamLeadId : "NA",
-                leaveBalance,
+                // leaveBalance,
                 role : role ? role : "Employee",
                 shiftTime,
                 loginPassword : loginPassword ? loginPassword : "12345",
@@ -118,7 +118,6 @@ const registerEmployee = async (req, res) => {
                 data: savedEmployee,
             });
         }
-
     } catch (error) {
         if (error.name === 'ValidationError') {
             return res.status(400).json({
@@ -153,7 +152,8 @@ const employeeLogin = async (req, res) => {
         }
 
         // Find user by email
-        const employee = await employeeModel.findOne({ $or:[{email: req.body.email},{employeeId:req.body.email}] });
+        const employee = await employeeModel.findOne({ $or:[{email: req.body.email},{employeeId:req.body.email}], accountStatus:"Active" });
+        console.log(employee)
         if (!employee) {
             return res.status(404).json(
                 { 
@@ -382,7 +382,7 @@ const getEmployeeListByManagerId = async (req, res) => {
 
         // Retrieve paginated employee records
         const employees = await employeeModel
-            .find({managerId:decoded.employeeId})
+            .find({$and:[{managerId:decoded.employeeId},{accountStatus:"Active"}]})
             .skip((pageNumber - 1) * limitNumber)
             .limit(limitNumber);
 
@@ -446,7 +446,7 @@ const getAllEmployeeList = async (req, res) => {
 
         // Retrieve paginated employee records
         const employees = await employeeModel
-            .find({})
+            .find({accountStatus:"Active"})
             .skip((pageNumber - 1) * limitNumber)
             .limit(limitNumber);
 
@@ -494,8 +494,12 @@ const getEmpDetailsById = async (req, res) => {
             }, {appliedCompOff: 0})
             // Convert mongoose document to plain object
             
+           const empDetails = await employeeModel.findOne({employeeId:employeeDoc.managerId},{employeeName:1})
+        //    console.log(11, empDetails)
+
             const employee = employeeDoc.toObject();
             employee.leaveBalance.appliedCompOff = compOffSum.appliedCompOff.toString();
+            employee.managerId = empDetails.employeeName ? empDetails.employeeName : "";
             return res.status(200).json({
                 statusCode: 200,
                 statusValue: "SUCCESS",
@@ -533,7 +537,7 @@ const getTodayOnleaveList = async (req, res) => {
             new Date(currentDate) <= new Date(leave.leaveEndDate)
         )
         .map(leave => leave.employeeId);
-
+        
         const employeeIds = [...new Set(employeesOnLeave)]
         if (employeeIds.length < 1) {
             return res.status(400).json({
@@ -562,6 +566,7 @@ const getTodayOnleaveList = async (req, res) => {
     }
 };
 
+
 const deleteEmpById = async (req, res) => {
     try {
         const { employeeId } = req.params;
@@ -572,7 +577,7 @@ const deleteEmpById = async (req, res) => {
                 message: "No employees found.",
             });
         }
-
+                
         const employee = await employeeModel.findOne({ employeeId: employeeId }, { __v: 0 })
         if (!employee) {
             return res.status(400).json({

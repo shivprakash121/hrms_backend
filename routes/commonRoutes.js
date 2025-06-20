@@ -16,5 +16,11 @@ router.get('/get-event-list', commonController.getEventList);
 router.delete('/delete-event/:id', commonController.deleteEvent);
 router.put('/update-event/:id', commonController.updateEventById);
 
+// Dashboard API
+router.get('/get-emp-data-count', commonController.getEmpDataCount);
+router.get('/get-emp-attendance-count', commonController.getEmpAttendanceCount);
+
+
+
 
 module.exports = router;

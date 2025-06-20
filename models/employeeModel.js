@@ -71,6 +71,7 @@ const employeeSchema = new mongoose.Schema({
   isProbation:{ type: Boolean, default: false },
   isNotice:{ type: Boolean, default: false },
   isWorking:{ type: Boolean, default: true },
+  isInhouse:{ type: Boolean, default: true },
 },{
     timestamps: true
 });

@@ -13,7 +13,9 @@ const {
     getAttendanceLogForOutDutyById,
     punchOutForOutDuty,
     createEmployeeSalary,
-    getAllEmployeeSalaries
+    getAllEmployeeSalaries,
+    getAllPunchRecordsForOutDuty,
+    updateLocation
 } = require('../controllers/mainController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
@@ -50,7 +52,9 @@ router.get('/approve-pending-leaves-by-system', approvedPendingLeaves);
 
 router.post('/punch-in', createAttendanceLogForOutDuty);
 router.post('/punch-out/:id', punchOutForOutDuty);
+router.put('/update-location/:id', updateLocation);
 router.get('/get-log-records/:employeeId', getAttendanceLogForOutDutyById);
+router.get('/get-all-punch-records/:employeeId', getAllPunchRecordsForOutDuty);
 
 
 router.post('/save-salary-data', createEmployeeSalary);
