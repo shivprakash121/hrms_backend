@@ -240,69 +240,74 @@ const logout = async (req, res) => {
 
 
 const updateEmployeeById = async (req, res) => {
-    try {
-        const { employeeId } = req.params;
-        const updateData = { ...req.body };
-        // console.log(121, req.body)
-        
-        // Validate employeeId
-        if (!employeeId) {
-            return res.status(400).json({
-                statusCode: 400,
-                statusValue: "FAIL",
-                message: "Employee ID is required",
-            });
-        }
-        
-        // Restricted fields that should NOT be updated
-        const restrictedFields = ["email", "employeeId", "loginPassword"];
-        restrictedFields.forEach((field) => delete updateData[field]);
+  try {
+    const { employeeId } = req.params;
+    const updateData = { ...req.body };
 
-        // Find the existing employee record
-        const empDetails = await employeeModel.findOne({ employeeId });
-
-        if (!empDetails) {
-            return res.status(404).json({
-                statusCode: 404,
-                statusValue: "FAIL",
-                message: "Employee not found",
-            });
-        }
-
-        // Merge old and new data for nested objects like `shiftTime` & `leaveBalance`
-        if (updateData.shiftTime) {
-            updateData.shiftTime = { ...empDetails.shiftTime, ...updateData.shiftTime };
-        }
-        if (updateData.leaveBalance) {
-            updateData.leaveBalance = { ...empDetails.leaveBalance, ...updateData.leaveBalance };
-        }
-
-        // Update only provided fields
-        const updatedEmployee = await employeeModel.findOneAndUpdate(
-            { employeeId },
-            { $set: updateData }, // Updates only provided fields
-            { new: true, runValidators: true }
-        );
-        
-        // Success response
-        return res.status(200).json({
-            statusCode: 200,
-            statusValue: "SUCCESS",
-            message: "Employee updated successfully",
-            data: updatedEmployee,
-        });
-    } catch (error) {
-        console.error(error);
-
-        // Error response
-        return res.status(500).json({
-            statusCode: 500,
-            statusValue: "FAIL",
-            message: "Error updating employee",
-            error: error.message,
-        });
+    if (!employeeId) {
+      return res.status(400).json({
+        statusCode: 400,
+        statusValue: "FAIL",
+        message: "Employee ID is required",
+      });
     }
+
+    const restrictedFields = ["email", "employeeId", "loginPassword"];
+    restrictedFields.forEach((field) => delete updateData[field]);
+
+    const empDetails = await employeeModel.findOne({ employeeId });
+
+    if (!empDetails) {
+      return res.status(404).json({
+        statusCode: 404,
+        statusValue: "FAIL",
+        message: "Employee not found",
+      });
+    }
+
+    // Flatten nested updates for leaveBalance
+    const nestedUpdateFields = {};
+
+    if (updateData.shiftTime) {
+      Object.keys(updateData.shiftTime).forEach(key => {
+        nestedUpdateFields[`shiftTime.${key}`] = updateData.shiftTime[key];
+      });
+      delete updateData.shiftTime;
+    }
+
+    if (updateData.leaveBalance) {
+      Object.keys(updateData.leaveBalance).forEach(key => {
+        nestedUpdateFields[`leaveBalance.${key}`] = updateData.leaveBalance[key];
+      });
+      delete updateData.leaveBalance;
+    }
+
+    // Merge flat fields and nested fields
+    const finalUpdateData = { ...updateData, ...nestedUpdateFields };
+
+    const updatedEmployee = await employeeModel.findOneAndUpdate(
+      { employeeId },
+      { $set: finalUpdateData },
+      { new: true, runValidators: true }
+    );
+
+    return res.status(200).json({
+      statusCode: 200,
+      statusValue: "SUCCESS",
+      message: "Employee updated successfully",
+      data: updatedEmployee,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      statusCode: 500,
+      statusValue: "FAIL",
+      message: "Error updating employee",
+      error: error.message,
+    });
+  }
 };
+
 
 
 const getEmployeeListByManagerId = async (req, res) => {

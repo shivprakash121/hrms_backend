@@ -19,7 +19,7 @@ router.put('/update-event/:id', commonController.updateEventById);
 // Dashboard API
 router.get('/get-emp-data-count', commonController.getEmpDataCount);
 router.get('/get-emp-attendance-count', commonController.getEmpAttendanceCount);
-
+router.get('/get-emp-leaves-count', commonController.getEmpLeaveCount);
 
 
 
