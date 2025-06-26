@@ -21,6 +21,7 @@
     "express": "^4.21.2",
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^7.5.0",
+    "fernet": "^0.3.3",
     "googleapis": "^149.0.0",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",

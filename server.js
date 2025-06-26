@@ -1058,7 +1058,28 @@ const calculateAttendDuration = async (req, res) => {
 //   calculateAttendDuration();
 // });
 
+///////////////////
 
+// const fernet = require("fernet");
+
+// // This is your base64 encoded key
+// const secret = new fernet.Secret("wN0GuJbTOWJNa7xyN0TTNIz7tuMFMtP_fiMPhz9Sehg=");
+
+// const token = new fernet.Token({
+//   secret: secret,
+//   token: "gAAAAABoXR15sk3-jhcJB3eYIQGKYIIb_OOMnSlu_RqoJD-s7aPpCsWq2Luq1PRK0M10PJsI_QGqWrdf5o_CaM3lX8wRyvFqTg==",
+//   ttl: 0 // 0 means no expiry
+// });
+
+// try {
+//   const decoded = token.decode();
+//   console.log("Decrypted----:", decoded);
+// } catch (e) {
+//   console.error("Decryption failed:", e.message);
+// }
+
+
+//////////////////////
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

@@ -530,7 +530,7 @@ const getEmpLeaveCount = async (req, res) => {
         // Format as string 'YYYY-MM-DD' because your DB stores leaveStartDate as a string
         const startOfLastMonthStr = moment().subtract(1, 'months').startOf('month').format('YYYY-MM-DD'); // e.g. '2025-05-01'
         const endOfLastMonthStr = moment().subtract(1, 'months').endOf('month').format('YYYY-MM-DD');     // e.g. '2025-05-31'
-        
+
         const leaveHistoryData = await leaveTakenHistoryModel.find({
             leaveStartDate: { $gte: startOfLastMonthStr, $lte: endOfLastMonthStr }
         }, {
@@ -538,22 +538,57 @@ const getEmpLeaveCount = async (req, res) => {
             leaveStartDate: 1,
             leaveEndDate: 1,
             leaveType: 1,
-            status:1
+            status: 1
         }).sort({ createdAt: -1 });
-         
+        // console.log(11, leaveHistoryData[0])
+
         let pendingReqs = await leaveTakenHistoryModel.aggregate([
             { $match: { status: "Pending" } },
             { $group: { _id: "$employeeId" } },
             { $count: "pendingReq" }
         ])
-        
-        console.log("Last month leave history:", pendingReqs);
+
+        // calculate unplanned leaves
+        const uninformedLeaveEmpIds = new Set();
+        leaveHistoryData.forEach(entry => {
+            if (entry.leaveType === "uninformedLeave") {
+                uninformedLeaveEmpIds.add(entry.employeeId)
+            }
+        })
+
+        // calculate planned leave count
+        const plannedLeaveEmpIds = new Set();
+        leaveHistoryData.forEach(entry => {
+            if (entry.leaveType === "earnedLeave" || entry.leaveType === "casualLeave" || entry.leaveType === "compOffLeave") {
+                plannedLeaveEmpIds.add(entry.employeeId)
+            }
+        })
+        // console.log("Last month leave history:", pendingReqs);
+        const attendanceRec = await AttendanceLogModel.find(
+            { Status: "Present " },
+            { InTime: 1, Status: 1, EmployeeCode: 1 }
+        ).sort({ _id: -1 }).limit(500);
+
+        // Assuming attendanceRec is your array
+        const currentDate = moment().format("YYYY-MM-DD");
+        const presentToday = attendanceRec.filter(entry => {
+            const inDate = moment(entry.InTime, "YYYY-MM-DD HH:mm:ss").format("YYYY-MM-DD");
+            return inDate === currentDate && entry.Status.trim() === "Present";
+        });
+
+        // To count unique EmployeeCode
+        const uniqueEmployees = new Set(presentToday.map(entry => entry.EmployeeCode));
 
         return res.status(200).json({
             statusCode: 200,
             statusValue: "SUCCESS",
             message: "Attendance counts get successfully.",
-            data: pendingReqs
+            data: {
+                pendingReqCount: pendingReqs[0]?.pendingReq || 0,
+                unplannedLeaveCount: uninformedLeaveEmpIds.size,
+                plannedLeaveCount: plannedLeaveEmpIds.size,
+                todayPresentCount: uniqueEmployees.size
+            }
         });
     } catch (error) {
         return res.status(500).json({
