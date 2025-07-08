@@ -28,6 +28,12 @@ exports.uploadMedicalReport = async (req, res) => {
     // }
 }    
 
+exports.uploadSelfieForAttendance = async (req, res) => {
+    // req.file contains a file object  
+    res.json(req.file);
+}    
+
+
 
 exports.uploadProfileImage = async (req, res) => {
     // req.file contains a file object  
@@ -43,6 +49,22 @@ exports.uploadProfileImage = async (req, res) => {
     )
     }
 }
+
+exports.uploadProfileImage = async (req, res) => {
+    // req.file contains a file object  
+    res.json(req.file);
+    // console.log(req.file.fieldname, req.params.deviceId)
+    if (req.file) {
+        await employeeModel.findOneAndUpdate({
+            employeeId:req.params.employeeId
+        },
+        {
+            employeePhoto:req.file.location
+        }
+    )
+    }
+}
+
 
 exports.uploadEmployeeFile = async (req, res) => {
     try {

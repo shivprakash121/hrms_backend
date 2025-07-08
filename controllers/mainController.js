@@ -1815,53 +1815,76 @@ const removeDuplicateLogs = async (req, res) => {
 const createAttendanceLogForOutDuty = async (req, res) => {
   try {
     const { employeeId, location, imageUrl } = req.body;
-    
-    // Validate required fields
-    if (!employeeId && !location) {
+
+    if (!employeeId || !location) {
       return res.status(400).json({
-        message: "employeeId is required",
+        message: "employeeId and location are required",
         statusCode: 400,
         statusValue: "error"
       });
     }
 
     const now = moment().tz("Asia/Kolkata");
-    const AttendanceDate = now.toDate();
+    const todayDate = now.format("YYYY-MM-DD");
+    const formattedTime = now.format("HH:mm");
     const formattedCheckIn = now.format("YYYY-MM-DD HH:mm:ss");
-    const OutTime = now.format("YYYY-MM-DD") + " 23:59:00" // print 2025-03-26 HH:mm:ss
-    const PunchRecords = `${now.format("HH:mm")}:in(IN),`;
 
-    // Check if the employee has already logged attendance for today
+    // Only standard format for punch (no location here)
+    const punchEntry = `${formattedTime}:in(IN),`;
+
+    // Find existing log for today
     const existingLog = await attendanceLogModelForOutDuty.findOne({
       employeeId,
-      AttendanceDate: {
-        $gte: AttendanceDate, // Start of the day
-        $lt: moment(AttendanceDate).add(1, "day").toDate() // Next day's start (exclusive)
-      }
+      InTime: { $regex: `^${todayDate}` }
     });
     
     if (existingLog) {
-      return res.status(400).json({
-        statusCode: 400,
-        statusValue: "FAIL",
-        message: "Attendance log already exists for today"
+      const punchRecords = existingLog.PunchRecords || "";
+      const punchArray = punchRecords.split(',').filter(Boolean);
+      const lastPunch = punchArray[punchArray.length - 1];
+
+      if (lastPunch && lastPunch.includes('in(IN)')) {
+        return res.status(400).json({
+          message: "First punch out before punch in again",
+          statusCode: 400,
+          statusValue: "error",
+          punchRecords
+        });
+      }
+      
+      // Append punch
+      existingLog.PunchRecords += punchEntry;
+
+      //  Append location with ||
+      const existingLocation = existingLog.location || "";
+      existingLog.location = existingLocation.length
+        ? `${existingLocation}||${location}`
+        : location;
+
+      existingLog.updatedAt = now.toDate();
+      await existingLog.save();
+      
+      return res.status(200).json({
+        message: "Punch In appended successfully",
+        statusCode: 200,
+        statusValue: "success",
+        data: existingLog
       });
     }
-    
-    // Create a new attendance log
+
+    // No log exists — create new one
     const newLog = new attendanceLogModelForOutDuty({
       employeeId,
-      AttendanceDate, // Stores only the date (00:00:00 IST)
+      AttendanceDate: now.toDate(),
       location,
       InTime: formattedCheckIn,
-      PunchRecords,
-      OutTime,
-      imageUrl: imageUrl ? imageUrl : "NA",
+      OutTime: `${todayDate} 23:59:00`,
+      PunchRecords: punchEntry,
+      imageUrl: imageUrl || "NA",
       createdAt: now.toDate(),
-      updatedAt: now.toDate(),
+      updatedAt: now.toDate()
     });
-    
-    // Save to database
+
     await newLog.save();
 
     return res.status(201).json({
@@ -1870,8 +1893,9 @@ const createAttendanceLogForOutDuty = async (req, res) => {
       statusValue: "success",
       data: newLog
     });
+
   } catch (error) {
-    console.error("Error creating attendance log:", error);
+    console.error("Error handling attendance punch:", error);
     return res.status(500).json({
       message: "Internal Server Error",
       statusCode: 500,
@@ -1884,57 +1908,75 @@ const createAttendanceLogForOutDuty = async (req, res) => {
 const punchOutForOutDuty = async (req, res) => {
   try {
     const { id } = req.params;
+    const { location } = req.body;
 
-    // Validate required fields
-    if (!id) {
+    if (!id || !location) {
       return res.status(400).json({
-        message: "Id is required",
+        message: "Id and location are required",
         statusCode: 400,
         statusValue: "error"
       });
     }
 
-    // Get current date & time in India Standard Time (IST)
     const now = moment().tz("Asia/Kolkata");
-
-    // Format OutTime as "YYYY-MM-DD HH:mm:ss" in IST
     const formattedOutTime = now.format("YYYY-MM-DD HH:mm:ss");
-    // Format PunchRecord as "HH:mm:out(OUT)"
-    const punchOutRecord = `${now.format("HH:mm")}:out(OUT)`;
+    const punchOutEntry = `${now.format("HH:mm")}:out(OUT),`;
 
-    // Check if the employee has an existing attendance log
+    //  Find existing log by ID
     const existingLog = await attendanceLogModelForOutDuty.findById(id);
+
     if (!existingLog) {
       return res.status(404).json({
+        message: "Attendance log not found",
         statusCode: 404,
-        statusValue: "FAIL",
-        message: "Attendance log not found or invalid ID"
+        statusValue: "FAIL"
       });
     }
-    
-    // Append the punch-out time to PunchRecords
-    const updatedPunchRecords = existingLog.PunchRecords
-      ? `${existingLog.PunchRecords}${punchOutRecord},`
-      : `${punchOutRecord},`;
 
-    // Update the OutTime and PunchRecords fields
+    const punchRecords = existingLog.PunchRecords || "";
+    const punchArray = punchRecords.split(',').filter(Boolean);
+    const lastPunch = punchArray[punchArray.length - 1];
+
+    //  Only allow OUT if last punch is IN
+    if (!lastPunch || !lastPunch.includes('in(IN)')) {
+      return res.status(400).json({
+        message: "First punch in before punching out",
+        statusCode: 400,
+        statusValue: "error",
+        punchRecords
+      });
+    }
+
+    //  Append OUT punch
+    const updatedPunchRecords = punchRecords + punchOutEntry;
+
+    //  Append to location using ||
+    const existingLocation = existingLog.location || "";
+    const updatedLocation = existingLocation.length
+      ? `${existingLocation}||${location}`
+      : location;
+
+    //  Update log
     const updatedLog = await attendanceLogModelForOutDuty.findByIdAndUpdate(
       id,
       {
         $set: {
           OutTime: formattedOutTime,
-          PunchRecords: updatedPunchRecords
+          PunchRecords: updatedPunchRecords,
+          location: updatedLocation,
+          updatedAt: now.toDate()
         }
       },
-      { new: true } // Returns the updated document
+      { new: true }
     );
-    
+
     return res.status(200).json({
       message: "Punch-out recorded successfully",
       statusCode: 200,
       statusValue: "success",
       data: updatedLog
     });
+
   } catch (error) {
     console.error("Error processing punch-out:", error);
     return res.status(500).json({
@@ -1944,6 +1986,7 @@ const punchOutForOutDuty = async (req, res) => {
     });
   }
 };
+
 
 
 const updateLocation = async (req, res) => {

@@ -6,6 +6,9 @@ const leaveController = require("../controllers/leaveController");
 
 // Leave routes
 router.post('/apply-leave/:employeeId', authMiddleware, leaveController.applyLeave);
+
+router.put('/update-leave-hisotry-data', leaveController.updateLeaveHistoryData); // oodo dev
+
 router.put('/action-for-leave-application/:id', authMiddleware, leaveController.actionForLeavApplication);
 router.post('/revert-leave-req', authMiddleware, leaveController.revertLeaveReq);
 router.put('/action-for-revert-leave-req/:id', authMiddleware, leaveController.actionForRevertLeaveReq);

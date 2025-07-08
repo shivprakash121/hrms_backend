@@ -6,6 +6,7 @@ const uploadController = require('../controllers/upload.controller.js');
 
 
 router.post('/upload-medical-report/:employeeId', upload.single('file'), uploadController.uploadMedicalReport);
+router.post('/upload-selfie-for-attendance', upload.single('file'), uploadController.uploadSelfieForAttendance);
 router.post('/upload-profile-image/:employeeId', upload.single('file'), uploadController.uploadProfileImage);
 router.post('/upload-employee-document', uploadController.uploadEmployeeFile);
 router.get('/get-employee-document-list', uploadController.getEmployeeDocs);

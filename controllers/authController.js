@@ -153,7 +153,7 @@ const employeeLogin = async (req, res) => {
 
         // Find user by email
         const employee = await employeeModel.findOne({ $or:[{email: req.body.email},{employeeId:req.body.email}], accountStatus:"Active" });
-        console.log(employee)
+        // console.log(employee)
         if (!employee) {
             return res.status(404).json(
                 { 
@@ -199,7 +199,6 @@ const employeeLogin = async (req, res) => {
                 gender:employee.gender,
                 // departmentName: deptData.departmentName || "Department not assigned",
                 token,
-
             },
         });
     } catch (error) {

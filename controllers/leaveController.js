@@ -132,9 +132,10 @@ const applyLeave = async (req, res) => {
 
         const availableBalance = await employeeModel.findOne(
             { $or: [{ employeeCode: req.params.employeeId }, { employeeId: req.params.employeeId }] },
-            { employeeId: 1, leaveBalance: 1 }
+            { employeeId: 1, leaveBalance: 1,}
         ).lean();
-
+        
+        const userDetails = await employeeModel.findOne({ $or: [{ employeeCode: req.params.employeeId }, { employeeId: req.params.employeeId }]}, {employeeId:1, managerId:1})
         // console.log("Available Balance:", availableBalance.leaveBalance);
         if (!availableBalance) {
             return res.status(404).json({
@@ -226,7 +227,7 @@ const applyLeave = async (req, res) => {
             leaveEndDate: leaveEndDate,
             totalDays: totalDays.toString(),
             reason: reason,
-            approvedBy: approvedBy || "NA",
+            approvedBy: userDetails.managerId || "NA",
             status: "Pending",
             dateTime: dateTime,
             shift: shift || "",
@@ -853,7 +854,8 @@ const actionCompOff = async (req, res) => {
                 approvedDate: dateTime,
                 comments: "Action taken by manager",
                 approvedBy: empData?.managerId || "NA"
-            }
+            },
+            { new: true }
         );
 
         if (req.body.status === "Approved") {
@@ -1063,6 +1065,62 @@ const actionForLeavApplication = async (req, res) => {
             error: error.message,
         });
     }
+};
+
+
+const updateLeaveHistoryData = async (req, res) => {
+  try {
+    const { employeeId, leaveStartDate, status, leaveType } = req.body;
+    // Ensure required identifiers
+    if (!employeeId || !leaveStartDate) {
+      return res.status(400).json({
+        statusCode: 400,
+        statusValue: "FAILED",
+        message: "employeeId and leaveStartDate are required.",
+      });
+    }
+
+    // Step 1: Check if the document exists
+    const existingDoc = await leaveTakenHistoryModel.findOne({
+      employeeId,
+      leaveStartDate,
+    });
+
+    if (!existingDoc) {
+      return res.status(404).json({
+        statusCode: 404,
+        statusValue: "FAILED",
+        message: "Leave record not found.",
+      });
+    }
+
+    // Step 2: Merge incoming fields with existing ones
+    const updatedFields = {
+      status: status ?? existingDoc.status,
+      leaveType: leaveType ?? existingDoc.leaveType,
+      leaveStartDate: leaveStartDate ?? existingDoc.leaveStartDate
+    };
+
+    // Step 3: Perform update
+    const updatedDoc = await leaveTakenHistoryModel.findByIdAndUpdate(
+      existingDoc._id,
+      updatedFields,
+      { new: true }
+    );
+
+    return res.status(200).json({
+      statusCode: 200,
+      statusValue: "SUCCESS",
+      message: "Leave updated successfully.",
+      data: updatedDoc,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      statusCode: 500,
+      statusValue: "FAIL",
+      message: error.message,
+    });
+  }
 };
 
 
@@ -3520,5 +3578,6 @@ module.exports = {
     applyForVendorMeeting,
     actionForVendorMeeting,
     getAllVendorMeetingLogs,
-    getVendorMeetingByUserId
+    getVendorMeetingByUserId,
+    updateLeaveHistoryData
 }

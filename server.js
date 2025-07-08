@@ -28,6 +28,7 @@ app.use(express.json());
 
 app.use(cors());
 
+
 connectToMongoDB();  // for mongo conn
 // connectToDB();  // for sql conn  
 
@@ -928,42 +929,72 @@ const mergeAttendance = async () => {
         PunchRecords: 1
       }
     );
-    
+
     for (const punchLog of punchInAttendanceLogs) {
       const { employeeId, AttendanceDate, InTime, OutTime, PunchRecords } = punchLog;
 
-      const updated = await AttendanceLogModel.findOneAndUpdate(
-        {
-          EmployeeCode: employeeId.toString(),
-          $expr: {
-            $and: [
-              { $eq: [{ $dayOfMonth: "$AttendanceDate" }, AttendanceDate.getUTCDate()] },
-              { $eq: [{ $month: "$AttendanceDate" }, AttendanceDate.getUTCMonth() + 1] },
-              { $eq: [{ $year: "$AttendanceDate" }, AttendanceDate.getUTCFullYear()] }
-            ]
-          }
-        },
+      const existingMainLog = await AttendanceLogModel.findOne({
+        EmployeeCode: employeeId.toString(),
+        $expr: {
+          $and: [
+            { $eq: [{ $dayOfMonth: "$AttendanceDate" }, AttendanceDate.getUTCDate()] },
+            { $eq: [{ $month: "$AttendanceDate" }, AttendanceDate.getUTCMonth() + 1] },
+            { $eq: [{ $year: "$AttendanceDate" }, AttendanceDate.getUTCFullYear()] }
+          ]
+        }
+      });
+
+      if (!existingMainLog) {
+        console.warn(`No match for EmployeeCode ${employeeId} on ${AttendanceDate.toISOString().split("T")[0]}`);
+        continue;
+      }
+
+      // Merge PunchRecords with duplicates preserved and sorted
+      const combinedPunches = [
+        ...(existingMainLog.PunchRecords || "").split(","),
+        ...(PunchRecords || "").split(",")
+      ]
+        .filter(p => p && p.includes(":")) // remove empty entries
+        .sort((a, b) => {
+          const [h1, m1] = a.split(":");
+          const [h2, m2] = b.split(":");
+          return (h1 + m1).localeCompare(h2 + m2);
+        });
+
+      const mergedPunchRecords = combinedPunches.join(",") + (combinedPunches.length ? "," : "");
+
+      // Merge InTime and OutTime
+      const mergedInTime = moment.min(
+        moment(existingMainLog.InTime, "YYYY-MM-DD HH:mm:ss"),
+        moment(InTime, "YYYY-MM-DD HH:mm:ss")
+      ).format("YYYY-MM-DD HH:mm:ss");
+
+      const mergedOutTime = moment.max(
+        moment(existingMainLog.OutTime, "YYYY-MM-DD HH:mm:ss"),
+        moment(OutTime, "YYYY-MM-DD HH:mm:ss")
+      ).format("YYYY-MM-DD HH:mm:ss");
+
+      // Update main attendance log
+      await AttendanceLogModel.findByIdAndUpdate(
+        existingMainLog._id,
         {
           $set: {
-            InTime,
-            OutTime,
-            PunchRecords,
+            PunchRecords: mergedPunchRecords,
+            InTime: mergedInTime,
+            OutTime: mergedOutTime,
             Status: "Present"
           }
         },
         { new: true }
       );
-
-      if (!updated) {
-        console.warn(`No match for EmployeeCode ${employeeId} on ${AttendanceDate.toISOString().split("T")[0]}`);
-      }
     }
 
     console.log("Attendance logs merged successfully");
   } catch (error) {
-    console.error("Error updating attendance logs:", error);
+    console.error(" Error updating attendance logs:", error);
   }
 };
+
 
 // Schedule cron job to run every 30 minutes
 // cron.schedule("*/30 * * * *", () => {
@@ -1078,8 +1109,8 @@ const calculateAttendDuration = async (req, res) => {
 //   console.error("Decryption failed:", e.message);
 // }
 
-
 //////////////////////
+
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
