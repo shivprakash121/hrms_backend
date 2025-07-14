@@ -11,6 +11,9 @@ const moment = require("moment-timezone");
 const attendanceLogModelForOutDuty = require("../models/attendanceLogModelForOutDuty");
 const employeeSalaryModel = require("../models/employeeSalaryModel");
 const jwt = require("jsonwebtoken");
+const employeeLocationModel = require("../models/employeeLocationModel");
+const moment2 = require('moment');
+
 
 // // Get all tables in the database
 // const getTables = async (req, res) => {
@@ -545,7 +548,7 @@ const generateUninformedLeave = async (req, res) => {
     }
 
     // Fetch all employees to create employee-manager map
-    const employeesData = await employeeModel.find({}, { employeeId: 1, managerId: 1, workingDays: 1 });
+    const employeesData = await employeeModel.find({accountStatus:"Active"}, { employeeId: 1, managerId: 1, workingDays: 1 });
 
     // Create employee-manager map
     const employeeManagerMap = new Map();
@@ -698,7 +701,7 @@ const generateUninformedLeave = async (req, res) => {
         });
       }
     });
-
+     
     // Step 2: Identify uninformedLeave records to delete
     uninformedLeaveMap.forEach((uninformedLeaves, employeeId) => {
       const existingLeaves = leaveMap.get(employeeId) || [];
@@ -2328,6 +2331,88 @@ const getAllEmployeeSalaries = async (req, res) => {
 };
 
 
+const saveEmpLocation = async (req, res) => {
+  try {
+    const { employeeId } = req.query;
+    let payload = req.body;
+
+    if (!employeeId) {
+      return res.status(400).json({
+        message: "employeeId is required in query",
+        statusCode: 400,
+        statusValue: "error"
+      });
+    }
+
+    // Normalize to array
+    if (!Array.isArray(payload)) {
+      payload = [payload];
+    }
+
+    // Validate and enrich each location
+    const locations = payload.map((item, index) => {
+      const {
+        type,
+        lat,
+        lng,
+        time,
+        locality,
+        subLocality,
+        duration,
+        timestamp
+      } = item;
+
+      if (
+        !type ||
+        lat === undefined ||
+        lng === undefined ||
+        !time ||
+        !duration ||
+        !timestamp
+      ) {
+        throw new Error(`Missing required fields in object at index ${index}`);
+      }
+
+      return {
+        type,
+        lat,
+        lng,
+        time,
+        locality,
+        subLocality,
+        duration,
+        timestamp: new Date(timestamp)
+      };
+    });
+
+    // Get attendanceDate from first timestamp
+    const attendanceDate = moment2(locations[0].timestamp).format("YYYY-MM-DD");
+
+    // Upsert (update or insert)
+    const updated = await employeeLocationModel.findOneAndUpdate(
+      { employeeId, attendanceDate },
+      { $push: { location: { $each: locations } } },
+      { upsert: true, new: true }
+    );
+
+    return res.status(201).json({
+      message: "Location event(s) saved successfully",
+      statusCode: 201,
+      statusValue: "success",
+      data: updated
+    });
+
+  } catch (error) {
+    console.error("Error saving employee location(s):", error.message);
+    return res.status(500).json({
+      message: error.message || "Internal Server Error",
+      statusCode: 500,
+      statusValue: "error"
+    });
+  }
+};
+
+
 
 
 
@@ -2353,5 +2438,6 @@ module.exports = {
   createEmployeeSalary,
   getAllEmployeeSalaries,
   getAllPunchRecordsForOutDuty,
-  updateLocation
+  updateLocation,
+  saveEmpLocation
 };

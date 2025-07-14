@@ -469,11 +469,12 @@ const applyForVendorMeeting = async (req, res) => {
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
         
         let { leaveStartDate, reason, approvedBy, leaveType, duration } = req.body;
-        console.log('body-data: ', req.body)
+        // console.log('body-data: ', req.body);
+        
         if (duration === ".5" || duration === "0.5") {
-            duration == "270"
+            duration = "270"; 
         } else if (duration === "1" || duration === "1.0") {
-            duration == "540" 
+            duration = "540";
         }
         // get current date and time
         const getIndiaCurrentDateTime = () => {
@@ -660,7 +661,7 @@ const actionForVendorMeeting = async (req, res) => {
 
 const requestCompOff = async (req, res) => {
     try {
-        const { compOffDate, reason } = req.body;
+        const { compOffDate, reason, totalDayss } = req.body;
 
         // Validate required fields
         if (!req.params.employeeId || !compOffDate || !reason) {
@@ -670,7 +671,7 @@ const requestCompOff = async (req, res) => {
                 statusValue: 'error',
             });
         }
-
+          
         const token = req.headers.authorization?.split(" ")[1];
         if (!token) {
             return res.status(400).json({
@@ -679,7 +680,7 @@ const requestCompOff = async (req, res) => {
                 message: "Token is required",
             });
         }
-
+        
         // Decode the token to get employee details
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         if (!decoded) {
@@ -693,7 +694,8 @@ const requestCompOff = async (req, res) => {
         // check already applied for the same date
         const existingCompOff = await CompOff.findOne({
             employeeId: req.params.employeeId,
-            compOffDate: compOffDate
+            compOffDate: compOffDate,
+            totalDays: totalDayss
         });
 
         if (existingCompOff) {
@@ -738,7 +740,7 @@ const requestCompOff = async (req, res) => {
             reason,
             approvedBy: getUser.managerId || "",
             appliedDate: dateTime,
-            totalDays: "1",
+            totalDays: totalDayss,
             // comments:"Approved by manager"
         });
 
@@ -2706,7 +2708,7 @@ const getAllPendingLeaves = async (req, res) => {
             search = req.query.search;
         }
         const pageNumber = parseInt(req.query.page, 10) || 1; // Default page is 1
-        const limitNumber = parseInt(req.query.limit, 10) || 20; // Default limit is 20
+        const limitNumber = parseInt(req.query.limit, 10) || 2000; // Default limit is 20
         const skip = (pageNumber - 1) * limitNumber;
 
         // console.log(decoded)
