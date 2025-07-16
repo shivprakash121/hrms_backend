@@ -513,7 +513,6 @@ app.get('/api/reset-medical-leaves', async (req, res) => {
 // });
 
 
-
 // Cron job for auto incremented casualLeave quaterly by 2
 // cron.schedule('30 0 1 1,4,7,10 *', async () => {
 //     console.log('Running cron job to credit 2 casual leaves...');
@@ -671,13 +670,25 @@ cron.schedule("*/15 * * * *", async () => {
             { EmployeeId: 2564, EmployeeCode: "2564" },
             { EmployeeId: 2751, EmployeeCode: "2751" },
             { EmployeeId: 2717, EmployeeCode: "2717" },
-            { EmployeeId: 2716, EmployeeCode: "2716" }
+            { EmployeeId: 2716, EmployeeCode: "2716" },
+
+            { EmployeeId: 2881, EmployeeCode: "2881" },
+            { EmployeeId: 2878, EmployeeCode: "2878" },
+            { EmployeeId: 2821, EmployeeCode: "2821" },
+            { EmployeeId: 2822, EmployeeCode: "2822" },
+            { EmployeeId: 2823, EmployeeCode: "2823" },
         ];
 
         await AttendanceLogModel.updateMany({EmployeeId:2564},{$set:{EmployeeCode:"2564"}})
         await AttendanceLogModel.updateMany({EmployeeId:2751},{$set:{EmployeeCode:"2751"}})
         await AttendanceLogModel.updateMany({EmployeeId:2717},{$set:{EmployeeCode:"2717"}})
         await AttendanceLogModel.updateMany({EmployeeId:2716},{$set:{EmployeeCode:"2716"}})
+
+        await AttendanceLogModel.updateMany({EmployeeId:2881},{$set:{EmployeeCode:"2881"}})
+        await AttendanceLogModel.updateMany({EmployeeId:2878},{$set:{EmployeeCode:"2878"}})
+        await AttendanceLogModel.updateMany({EmployeeId:2821},{$set:{EmployeeCode:"2821"}})
+        await AttendanceLogModel.updateMany({EmployeeId:2822},{$set:{EmployeeCode:"2822"}})
+        await AttendanceLogModel.updateMany({EmployeeId:2823},{$set:{EmployeeCode:"2823"}})
 
     } catch (error) {
         console.error("Error in EmployeeCode update job:", error);

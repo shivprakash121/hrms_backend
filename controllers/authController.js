@@ -13,6 +13,8 @@ const leaveTakenHistoryModel = require("../models/leaveTakenHistoryModel");
 const {sendOtp} = require("../helper/sendOtp");
 const CompOff = require("../models/compOffHistoryModel");
 
+
+
 const registerEmployee = async (req, res) => {
     try {
         const {

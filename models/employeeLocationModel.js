@@ -6,11 +6,11 @@ const locationSchema = new mongoose.Schema({
     required: true
   },
   lat: {
-    type: Number,
+    type: String,
     required: true
   },
   lng: {
-    type: Number,
+    type: String,
     required: true
   },
   time: {
@@ -32,6 +32,10 @@ const locationSchema = new mongoose.Schema({
   timestamp: {
     type: Date,
     required: true
+  },
+  distance: {
+    type: String, 
+    default: "" 
   }
 }, { _id: false }); 
 

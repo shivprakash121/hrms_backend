@@ -12,7 +12,6 @@ const attendanceLogModelForOutDuty = require("../models/attendanceLogModelForOut
 const employeeSalaryModel = require("../models/employeeSalaryModel");
 const jwt = require("jsonwebtoken");
 const employeeLocationModel = require("../models/employeeLocationModel");
-const moment2 = require('moment');
 
 
 // // Get all tables in the database
@@ -2331,6 +2330,9 @@ const getAllEmployeeSalaries = async (req, res) => {
 };
 
 
+// const moment = require("moment-timezone"); // Ensure this is installed
+// npm install moment-timezone if needed
+
 const saveEmpLocation = async (req, res) => {
   try {
     const { employeeId } = req.query;
@@ -2359,19 +2361,16 @@ const saveEmpLocation = async (req, res) => {
         locality,
         subLocality,
         duration,
-        timestamp
+        timestamp,
+        distance,
       } = item;
 
-      if (
-        !type ||
-        lat === undefined ||
-        lng === undefined ||
-        !time ||
-        !duration ||
-        !timestamp
-      ) {
+      if (!type || !lat || !lng || !time || !duration || !timestamp) {
         throw new Error(`Missing required fields in object at index ${index}`);
       }
+
+      // Convert timestamp to IST
+      const timestampIST = moment.tz(timestamp, "Asia/Kolkata");
 
       return {
         type,
@@ -2381,12 +2380,15 @@ const saveEmpLocation = async (req, res) => {
         locality,
         subLocality,
         duration,
-        timestamp: new Date(timestamp)
+        timestamp: timestampIST.toDate(), // Save as Date object in IST
+        distance,
       };
     });
 
-    // Get attendanceDate from first timestamp
-    const attendanceDate = moment2(locations[0].timestamp).format("YYYY-MM-DD");
+    // Get attendanceDate in IST from the first location's timestamp
+    const attendanceDate = moment
+      .tz(locations[0].timestamp, "Asia/Kolkata")
+      .format("YYYY-MM-DD");
 
     // Upsert (update or insert)
     const updated = await employeeLocationModel.findOneAndUpdate(
