@@ -39,6 +39,10 @@ const compOffSchema = new mongoose.Schema({
     type: String,
     default: ""
   },
+  duration: {
+    type: String,
+    default: ""
+  }
 }, {
   timestamps: true, // Adds createdAt and updatedAt timestamps
 });

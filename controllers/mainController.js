@@ -2269,7 +2269,7 @@ const getAllEmployeeSalaries = async (req, res) => {
     }
      
     // === Employee role ===
-    if (decoded.role === "Employee") {
+    if (decoded.role === "Employee" || decoded.role === "Manager") {
       const salaryRecords = await employeeSalaryModel.find({
         "employee_basic_details.employee_code": decoded.employeeId,
         ...searchCondition,
@@ -2282,7 +2282,7 @@ const getAllEmployeeSalaries = async (req, res) => {
         data: salaryRecords,
       });
 
-    } else if (decoded.role === "HR-Admin" || decoded.role === "Admin") {
+    } else if (decoded.role === "HR-Admin" || decoded.role === "Admin" || decoded.role === "Super-Admin") {
       const aggregatePipeline = [
         { $match: searchCondition },
         { $sort: { createdAt: -1 } },
@@ -2335,8 +2335,7 @@ const getAllEmployeeSalaries = async (req, res) => {
 
 const saveEmpLocation = async (req, res) => {
   try {
-    const { employeeId } = req.query;
-    let payload = req.body;
+    const {employeeId, trackPath, markers } = req.body;
 
     if (!employeeId) {
       return res.status(400).json({
@@ -2346,66 +2345,74 @@ const saveEmpLocation = async (req, res) => {
       });
     }
 
-    // Normalize to array
-    if (!Array.isArray(payload)) {
-      payload = [payload];
+    if (!Array.isArray(trackPath) || trackPath.length === 0) {
+      return res.status(400).json({
+        message: "trackPath must be a non-empty array",
+        statusCode: 400,
+        statusValue: "error"
+      });
     }
 
-    // Validate and enrich each location
-    const locations = payload.map((item, index) => {
-      const {
-        type,
-        lat,
-        lng,
-        time,
-        locality,
-        subLocality,
-        duration,
-        timestamp,
-        distance,
-      } = item;
+    if (!Array.isArray(markers)) {
+      return res.status(400).json({
+        message: "markers must be an array",
+        statusCode: 400,
+        statusValue: "error"
+      });
+    }
 
-      if (!type || !lat || !lng || !time || !duration || !timestamp) {
-        throw new Error(`Missing required fields in object at index ${index}`);
+    // Validate trackPath
+    const validatedTrackPath = trackPath.map((point, i) => {
+      const { lat, lng, timestamp } = point;
+      if (lat === undefined || lng === undefined || !timestamp) {
+        throw new Error(`Missing required trackPath fields at index ${i}`);
+      }
+      return { lat, lng, timestamp };
+    });
+
+    // Validate markers
+    const validatedMarkers = markers.map((m, i) => {
+      const {
+        type, lat, lng, time = '', locality = '', subLocality = '',
+        duration = '', timestamp = '', distance = ''
+      } = m;
+
+      if (!type || lat === undefined || lng === undefined) {
+        throw new Error(`Missing required marker fields at index ${i}`);
       }
 
-      // Convert timestamp to IST
-      const timestampIST = moment.tz(timestamp, "Asia/Kolkata");
-
       return {
-        type,
-        lat,
-        lng,
-        time,
-        locality,
-        subLocality,
-        duration,
-        timestamp: timestampIST.toDate(), // Save as Date object in IST
-        distance,
+        type, lat, lng, time, locality, subLocality,
+        duration, timestamp, distance
       };
     });
 
-    // Get attendanceDate in IST from the first location's timestamp
+    // Derive attendanceDate from first trackPath timestamp
     const attendanceDate = moment
-      .tz(locations[0].timestamp, "Asia/Kolkata")
+      .tz(validatedTrackPath[0].timestamp, "Asia/Kolkata")
       .format("YYYY-MM-DD");
 
-    // Upsert (update or insert)
+    // Upsert employee location
     const updated = await employeeLocationModel.findOneAndUpdate(
       { employeeId, attendanceDate },
-      { $push: { location: { $each: locations } } },
+      {
+        $push: {
+          trackPath: { $each: validatedTrackPath },
+          markers: { $each: validatedMarkers }
+        }
+      },
       { upsert: true, new: true }
     );
 
     return res.status(201).json({
-      message: "Location event(s) saved successfully",
+      message: "Location data saved successfully",
       statusCode: 201,
       statusValue: "success",
       data: updated
     });
-
+    
   } catch (error) {
-    console.error("Error saving employee location(s):", error.message);
+    console.error("Error saving employee location:", error.message);
     return res.status(500).json({
       message: error.message || "Internal Server Error",
       statusCode: 500,
@@ -2413,7 +2420,6 @@ const saveEmpLocation = async (req, res) => {
     });
   }
 };
-
 
 
 

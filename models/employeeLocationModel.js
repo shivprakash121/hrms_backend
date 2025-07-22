@@ -1,21 +1,39 @@
+const { required } = require('joi');
 const mongoose = require('mongoose');
 
-const locationSchema = new mongoose.Schema({
+// Schema for items inside `trackPath`
+const trackPathSchema = new mongoose.Schema({
+  lat: {
+    type: Number,
+    required: true
+  },
+  lng: {
+    type: Number,
+    required: true
+  },
+  timestamp: {
+    type: String,
+    required: true
+  }
+}, { _id: false });
+
+// Schema for items inside `markers`
+const markerSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true
   },
   lat: {
-    type: String,
+    type: Number,
     required: true
   },
   lng: {
-    type: String,
+    type: Number,
     required: true
   },
   time: {
-    type: String, 
-    required: true
+    type: String,
+    default: ''
   },
   locality: {
     type: String,
@@ -26,31 +44,36 @@ const locationSchema = new mongoose.Schema({
     default: ''
   },
   duration: {
-    type: String, 
-    required: true
+    type: String,
+    default: ''
   },
   timestamp: {
-    type: Date,
-    required: true
+    type: String,
+    default: ''
   },
   distance: {
-    type: String, 
-    default: "" 
+    type: String,
+    default: ''
   }
-}, { _id: false }); 
+}, { _id: false });
 
+// Main schema
 const employeeLocationSchema = new mongoose.Schema({
   employeeId: {
     type: String,
     required: true
   },
   attendanceDate: {
-    type: String, 
-    required: true
+    type: String,
+    default: "" 
   },
-  location: {
-    type: [locationSchema],
-    required: true
+  trackPath: {
+    type: [trackPathSchema],
+    default: []
+  },
+  markers: {
+    type: [markerSchema],
+    default: []
   }
 }, {
   timestamps: true

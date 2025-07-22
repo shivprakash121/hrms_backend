@@ -662,6 +662,7 @@ const actionForVendorMeeting = async (req, res) => {
 const requestCompOff = async (req, res) => {
     try {
         const { compOffDate, reason, totalDayss } = req.body;
+        // console.log(req.body)
 
         // Validate required fields
         if (!req.params.employeeId || !compOffDate || !reason) {
@@ -740,9 +741,9 @@ const requestCompOff = async (req, res) => {
             reason,
             approvedBy: getUser.managerId || "",
             appliedDate: dateTime,
-            totalDays: totalDayss,
-            // comments:"Approved by manager"
+            totalDays: String(totalDayss), // ensures string even if accidentally sent as number
         });
+
 
         // Save to the database
         const savedCompOff = await compOffRequest.save();
