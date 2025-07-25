@@ -871,7 +871,7 @@ const actionCompOff = async (req, res) => {
                 });
             }
 
-            const totalDays = parseInt(compOffData.totalDays, 10) || 0; // Convert string to integer safely
+            const totalDays = parseFloat(compOffData.totalDays, 10) || 0; // Convert string to integer safely
 
             await employeeModel.updateOne(
                 { employeeId: compOffData.employeeId },
@@ -881,7 +881,7 @@ const actionCompOff = async (req, res) => {
                             "leaveBalance.compOffLeave": {
                                 $toString: {
                                     $add: [
-                                        { $toInt: "$leaveBalance.compOffLeave" },
+                                        { $toDouble: "$leaveBalance.compOffLeave" },
                                         totalDays, // Add totalDays to earnedLeave balance
                                     ],
                                 },
