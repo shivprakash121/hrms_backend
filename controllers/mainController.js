@@ -1483,6 +1483,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
           "shiftTime": 1,
           "InTime": 1,
           "OutTime": 1,
+          "PunchRecords": 1,
           // "EmployeeId":1
         },
       },
@@ -1499,7 +1500,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
       const minutes = durationInMinutes % 60;
       const totalMinutes = hours * 60 + minutes;
 
-      const timeThreshold = "09:18:00";
+      const timeThreshold = "09:16:00";
       let isLate = false;
 
       if (inTimeStr && inTimeStr.includes(" ")) {
@@ -1519,7 +1520,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
         return "Absent";
       }
     };
-
+    
     const updatedData = aggResult.map(entry => {
       const durationInHHMM = convertDuration(entry.Duration);
       const attendanceStatus = getAttendanceStatus(entry.Duration, entry.InTime);
@@ -1600,15 +1601,21 @@ const getAttendanceDaysByMonth = async (req, res) => {
         shiftTime: entry.shiftTime || empData.shiftTime
       }))
     }
-
+    
     const totalWorkingDays = formattedResult.reduce((sum, entry) => {
       const status = entry.AttendanceStatus?.trim();
+      const leaveType = entry.leaveType?.trim().toLowerCase();
+
       if (status === "Full Day") {
         return sum + 1;
       } else if (status === "Half Day") {
-        return sum + 0.5;
+        if (leaveType === "regularized" || leaveType === "shortleave") {
+          return sum + 1; // Upgrade Half Day to Full Day
+        }
+        return sum + 0.5; // Normal Half Day
       }
-      return sum; // Skip if it's not Full Day or Half Day
+
+      return sum; 
     }, 0);
 
     if (aggResult.length > 0) {

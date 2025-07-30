@@ -22,5 +22,8 @@ router.get('/get-emp-attendance-count', commonController.getEmpAttendanceCount);
 router.get('/get-emp-leaves-count', commonController.getEmpLeaveCount);
 
 
+router.post('/add-trackolap-attendance', commonController.addTrackolapAttendance);
+router.get('/get-trackolap-attendance', commonController.getTrackolapAttendance); 
+
 
 module.exports = router;

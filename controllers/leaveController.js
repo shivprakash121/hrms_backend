@@ -21,7 +21,7 @@ const applyLeave = async (req, res) => {
             leaveType: Joi.string().valid(
                 "medicalLeave", "earnedLeave", "paternityLeave",
                 "maternityLeave", "casualLeave", "compOffLeave",
-                "optionalLeave"
+                "optionalLeave", "bereavementLeave"
             ).required(),
             leaveStartDate: Joi.string().required(),
             leaveEndDate: Joi.string().allow("").optional(),
@@ -342,6 +342,19 @@ const applyForRegularization = async (req, res) => {
         });
         // Check if the count exceeds the limit
         if (leaveType === "regularized") {
+            const checkAttendance = await AttendanceLogModel.findOne({
+            $and: [
+                    { AttendanceDate: new Date(req.body.leaveStartDate) },
+                    { EmployeeCode: req.params.employeeId }
+                ]
+            })
+            if (checkAttendance.Duration <= 480) {
+                return res.status(400).json({
+                    message: "Your work duration is less than 8 hours.",
+                    statusCode: 400,
+                    statusValue: "VALIDATION_ERROR",
+                });
+            }
             if (checkMaxLimitReg.length >= 2) {
                 return res.status(400).json({
                     message: "You have already reached the maximum regularization limit for this month.",

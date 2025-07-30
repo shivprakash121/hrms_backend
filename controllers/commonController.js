@@ -12,6 +12,7 @@ const eventModel = require("../models/eventModel");
 const AttendanceLogModel = require("../models/attendanceLogModel");
 // console.log(process.env.JWT_SECRET)
 const moment = require('moment');
+const trackolapAttendanceModel = require("../models/trackolapAttendanceModel");
 
 
 const addNewHoliday = async (req, res) => {
@@ -601,6 +602,111 @@ const getEmpLeaveCount = async (req, res) => {
 }
 
 
+const getTrackolapAttendance = async (req, res) => {
+    try {
+        if (req.query.month) {
+            const [year, month] = req.query.month.split("-");
+            const startDateStr = `${year}-${month}-01`;
+            const endDate = new Date(startDateStr);
+            endDate.setMonth(endDate.getMonth() + 1);
+            const endDateStr = endDate.toISOString().split("T")[0]; // Converts to "yyyy-mm-dd"
+
+            attendanceLogs = await trackolapAttendanceModel.find({
+                date: {
+                    $gte: startDateStr,
+                    $lt: endDateStr
+                }
+            });
+        } else {
+            attendanceLogs = await trackolapAttendanceModel.find({});
+        }
+
+        if (attendanceLogs.length === 0) {
+            return res.status(400).json({
+                statusCode: 400,
+                statusValue: "FAIL",
+                message: "We don't have attendance logs."
+            });
+        }
+
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Data retrieved successfully.",
+            data: attendanceLogs
+        });
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: "Internal Server Error",
+            error: error.message
+        });
+    }
+};
+
+
+const addTrackolapAttendance = async (req, res) => {
+  try {
+    const schema = Joi.object({
+      employeeId: Joi.string().required(),
+      employeeName: Joi.string().required(),
+      date: Joi.string().required(),
+      status: Joi.string().required()
+    });
+    
+    const { error, value } = schema.validate(req.body);
+    if (error) {
+      return res.status(400).json({
+        statusValue: "FAIL",
+        statusCode: 400,
+        message: error.details[0].message
+      });
+    }
+    
+    const { employeeId, employeeName, date, status } = value;
+
+    // Check for duplicate entry
+    const existingEntry = await trackolapAttendanceModel.findOne({
+      employeeId: employeeId.trim(),
+      date: date.trim()
+    });
+
+    if (existingEntry) {
+      return res.status(409).json({
+        statusCode: 409,
+        statusValue: "FAIL",
+        message: "Duplicate entry: Attendance for this employee on this date already exists.",
+        data: existingEntry
+      });
+    }
+
+    // Save new entry
+    const newAttendance = new trackolapAttendanceModel({
+      employeeId: employeeId.trim(),
+      employeeName: employeeName.trim(),
+      date: date.trim(),
+      status: status.trim()
+    });
+
+    const savedAttendance = await newAttendance.save();
+
+    return res.status(201).json({
+      statusCode: 201,
+      statusValue: "SUCCESS",
+      message: "Data saved successfully.",
+      data: savedAttendance
+    });
+  } catch (error) {
+    return res.status(500).json({
+      statusCode: 500,
+      statusValue: "FAIL",
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+};
+
 
 module.exports = {
     addNewHoliday,
@@ -613,5 +719,7 @@ module.exports = {
     updateEventById,
     getEmpDataCount,
     getEmpAttendanceCount,
-    getEmpLeaveCount
+    getEmpLeaveCount,
+    addTrackolapAttendance,
+    getTrackolapAttendance
 }

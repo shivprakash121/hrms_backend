@@ -7,7 +7,7 @@ const leaveTakenHistorySchema = new mongoose.Schema({
   },
   leaveType: {
     type: String,
-    enum: ["casualLeave", "medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "compOffLeave", "regularized", "shortLeave", "uninformedLeave", "optionalLeave", "vendor-meeting"],
+    enum: ["casualLeave", "medicalLeave", "earnedLeave", "paternityLeave", "maternityLeave", "compOffLeave", "regularized", "shortLeave", "uninformedLeave", "optionalLeave", "vendor-meeting", "bereavementLeave"],
     required: true,
   },
   leaveStartDate: { 

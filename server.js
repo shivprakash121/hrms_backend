@@ -26,7 +26,30 @@ app.use(bodyParser.json({ limit: '10mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.json());
 
+// const cors = require("cors");
+
+// Define CORS options
+// const corsOptions = {
+//   origin: (origin, callback) => {
+//     const allowedOrigins = [
+//       "https://13.238.217.82",
+//       "http://13.238.217.82"
+//     ];
+
+//     if (!origin || allowedOrigins.includes(origin)) {
+//       callback(null, true);
+//     } else {
+//       callback(new Error("Not allowed by CORS"));
+//     }
+//   },
+//   methods: ["GET", "POST", "PUT", "DELETE"]
+// };
+
+// // Apply CORS middleware
+// app.use(cors(corsOptions));
+
 app.use(cors());
+
 
 
 connectToMongoDB();  // for mongo conn
