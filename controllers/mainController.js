@@ -12,7 +12,8 @@ const attendanceLogModelForOutDuty = require("../models/attendanceLogModelForOut
 const employeeSalaryModel = require("../models/employeeSalaryModel");
 const jwt = require("jsonwebtoken");
 const employeeLocationModel = require("../models/employeeLocationModel");
-
+const trackolapAttendanceModel = require("../models/trackolapAttendanceModel");
+const deleteUninformedLeaves = require('../utils/deleteUninformedLeaves');
 
 // // Get all tables in the database
 // const getTables = async (req, res) => {
@@ -547,7 +548,7 @@ const generateUninformedLeave = async (req, res) => {
     }
 
     // Fetch all employees to create employee-manager map
-    const employeesData = await employeeModel.find({accountStatus:"Active"}, { employeeId: 1, managerId: 1, workingDays: 1 });
+    const employeesData = await employeeModel.find({ accountStatus: "Active" }, { employeeId: 1, managerId: 1, workingDays: 1 });
 
     // Create employee-manager map
     const employeeManagerMap = new Map();
@@ -665,25 +666,25 @@ const generateUninformedLeave = async (req, res) => {
       };
     });
     // console.log(11, leaveRecords)
-    
+
     // Insert into MongoDB
     if (leaveRecords.length > 0) {
       await leaveTakenHistoryModel.insertMany(leaveRecords);
     }
-     
+
     const updatedLeaves = await leaveTakenHistoryModel.find(
       {},
       { employeeId: 1, leaveType: 1, leaveStartDate: 1, leaveEndDate: 1 }
     );
-    
+
     const leaveMap = new Map();
     const uninformedLeaveMap = new Map();
     const leavesToDelete = [];
-
+    
     // Step 1: Store other leave types in a Map
     updatedLeaves.forEach(leave => {
       const key = `${leave.employeeId}`;
-      
+
       if (leave.leaveType !== "uninformedLeave") {
         if (!leaveMap.has(key)) leaveMap.set(key, []);
         leaveMap.get(key).push({
@@ -700,7 +701,7 @@ const generateUninformedLeave = async (req, res) => {
         });
       }
     });
-     
+
     // Step 2: Identify uninformedLeave records to delete
     uninformedLeaveMap.forEach((uninformedLeaves, employeeId) => {
       const existingLeaves = leaveMap.get(employeeId) || [];
@@ -726,7 +727,7 @@ const generateUninformedLeave = async (req, res) => {
         }
       });
     });
-    
+
     // Step 3: Delete the identified uninformedLeave records
     if (leavesToDelete.length > 0) {
       await leaveTakenHistoryModel.deleteMany({ _id: { $in: leavesToDelete } });
@@ -734,7 +735,10 @@ const generateUninformedLeave = async (req, res) => {
     } else {
       console.log("No uninformedLeave records to delete.");
     }
-      
+     
+    // check and delete uninformed leave of trackolap data
+    deleteUninformedLeaves();
+
     return res.status(200).json({
       statusCode: 200,
       statusValue: "SUCCESS",
