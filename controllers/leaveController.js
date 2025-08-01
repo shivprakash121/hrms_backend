@@ -452,7 +452,7 @@ const applyForVendorMeeting = async (req, res) => {
             duration:Joi.string().required(),
         });
         let result = schema.validate(req.body);
-        // console.log(req.body) 
+        // console.log(11, req.body) 
         if (result.error) {
             return res.status(400).json({
                 statusValue: "FAIL",
@@ -482,13 +482,31 @@ const applyForVendorMeeting = async (req, res) => {
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
         
         let { leaveStartDate, reason, approvedBy, leaveType, duration } = req.body;
-        // console.log('body-data: ', req.body);
         
-        if (duration === ".5" || duration === "0.5") {
-            duration = "270"; 
-        } else if (duration === "1" || duration === "1.0") {
-            duration = "540";
+        // Check if already applied for the same date
+        const alreadyApplied = await leaveTakenHistoryModel.findOne({
+            employeeId: req.params.employeeId,
+            leaveType: "vendor-meeting",
+            leaveStartDate: leaveStartDate,
+            status: {$in : ["Pending", "Approved"]}
+        });
+        
+        if (alreadyApplied) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: "You have already applied for vendor-meeting on this date.",
+            })
         }
+
+        // Map duration to totalDays
+        let durationMinutes = "540";
+        if (["0.5", ".5", "first-half", "second-half"].includes(duration)) {
+            durationMinutes = "270";
+        } else if (["1", "1.0", "", "full-day"].includes(duration)) {
+            durationMinutes = "540";
+        }
+        
         // get current date and time
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
@@ -528,12 +546,12 @@ const applyForVendorMeeting = async (req, res) => {
             leaveType: leaveType,
             leaveStartDate: leaveStartDate,
             leaveEndDate: leaveStartDate,
-            totalDays: "1",
+            totalDays: durationMinutes === "270" ? "0.5" : "1",
             reason: reason,
-            approvedBy: getUser.managerId,
+            approvedBy: getUser.managerId || "System",
             status: "Pending",
             dateTime: dateTime,
-            duration: duration
+            duration: durationMinutes,
         })
         
         const saveDoc = await bodyDoc.save();
@@ -2722,7 +2740,7 @@ const getAllPendingLeaves = async (req, res) => {
             search = req.query.search;
         }
         const pageNumber = parseInt(req.query.page, 10) || 1; // Default page is 1
-        const limitNumber = parseInt(req.query.limit, 10) || 2000; // Default limit is 20
+        const limitNumber = parseInt(req.query.limit, 10) || 10; // Default limit is 20
         const skip = (pageNumber - 1) * limitNumber;
 
         // console.log(decoded)

@@ -14,6 +14,8 @@ const jwt = require("jsonwebtoken");
 const employeeLocationModel = require("../models/employeeLocationModel");
 const trackolapAttendanceModel = require("../models/trackolapAttendanceModel");
 const deleteUninformedLeaves = require('../utils/deleteUninformedLeaves');
+const generateUninformedForSales = require('../utils/generateUninformedForSales');
+
 
 // // Get all tables in the database
 // const getTables = async (req, res) => {
@@ -278,7 +280,7 @@ const getAllAttendanceLogs = async (req, res) => {
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : null;
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 31;
     const offset = (page - 1) * limit;
 
     // Build the filter object for MongoDB query
@@ -666,7 +668,7 @@ const generateUninformedLeave = async (req, res) => {
       };
     });
     // console.log(11, leaveRecords)
-
+  
     // Insert into MongoDB
     if (leaveRecords.length > 0) {
       await leaveTakenHistoryModel.insertMany(leaveRecords);
@@ -738,13 +740,14 @@ const generateUninformedLeave = async (req, res) => {
      
     // check and delete uninformed leave of trackolap data
     deleteUninformedLeaves();
+    generateUninformedForSales();
 
     return res.status(200).json({
       statusCode: 200,
       statusValue: "SUCCESS",
       message: "Attendance records processed successfully.",
       data: leaveRecords,
-      // data2: updatedLeaves
+      // data2: trackolapData
     });
   } catch (err) {
     console.error("Error fetching attendance logs:", err);
@@ -1317,9 +1320,11 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
     const dateTo = req.query.dateTo ? new Date(req.query.dateTo) : new Date(); // Default to current date if dateTo is not provided
     const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom) : null; // No default for dateFrom
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 20;
+    const limit = parseInt(req.query.limit) || 31;
     const offset = (page - 1) * limit;
 
+    console.log(page, limit)
+    
     // Validate employeeId
     if (!employeeId) {
       return res.status(400).json({

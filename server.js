@@ -914,7 +914,7 @@ cron.schedule("*/30 * * * *", async () => {
         const bulkOps = empList.map(emp => {
             const count = empLeaveMap.get(emp.employeeId) || 0;
             let maxRegularization = 0;
-
+            
             if (count === 0) {
                 maxRegularization = 2;
             } else if (count === 1) {
