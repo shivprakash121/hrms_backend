@@ -394,7 +394,7 @@ const approvedPendingLeaves = async (req, res) => {
         leaveStartDate: { $gte: startDate, $lte: endDate },
         leaveEndDate: { $gte: startDate, $lte: endDate },
       },
-      { employeeId: 1, leaveType: 1, totalDays: 1, leaveStartDate: 1, leaveEndDate: 1 }
+      { employeeId: 1, leaveType: 1, totalDays: 1, leaveStartDate: 1, leaveEndDate: 1, duration: 1 }
     );
 
     if (!pendingLeaves.length) {
@@ -407,7 +407,6 @@ const approvedPendingLeaves = async (req, res) => {
 
     let approvedLeaves = [];
     let insufficientBalanceLeaves = [];
-    // Get the current time in IST
 
     const getIndiaCurrentDateTime = () => {
       const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
@@ -416,7 +415,7 @@ const approvedPendingLeaves = async (req, res) => {
       const pad = (n) => (n < 10 ? `0${n}` : n);
 
       const year = date.getFullYear();
-      const month = pad(date.getMonth() + 1); // Months are 0-based
+      const month = pad(date.getMonth() + 1);
       const day = pad(date.getDate());
       const hours = pad(date.getHours());
       const minutes = pad(date.getMinutes());
@@ -425,10 +424,10 @@ const approvedPendingLeaves = async (req, res) => {
       return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     };
 
-    const dateTime = getIndiaCurrentDateTime()
+    const dateTime = getIndiaCurrentDateTime();
 
     for (const leave of pendingLeaves) {
-      const { employeeId, leaveType, totalDays } = leave;
+      const { employeeId, leaveType, totalDays, duration } = leave;
 
       // Find the employee record
       const employee = await employeeModel.findOne({ employeeId });
@@ -437,6 +436,47 @@ const approvedPendingLeaves = async (req, res) => {
         console.log(`Employee ${employeeId} not found.`);
         continue;
       }
+
+      // Handle "vendor-meeting" leave type separately (auto-approve)
+      if (leaveType === "vendor-meeting") {
+        // Normalize duration based on string value
+        let newDuration = leave.duration;
+
+        if (["0.5", ".5", "first-half", "second-half"].includes(leave.duration)) {
+          newDuration = "270";
+        } else if (["1", "1.0", "full-day"].includes(leave.duration)) {
+          newDuration = "540";
+        }
+
+        // Update the leave document
+        await leaveTakenHistoryModel.updateOne(
+          { _id: leave._id },
+          {
+            $set: {
+              status: "Approved",
+              approvedDateTime: dateTime,
+              remarks: "Auto-approved: Vendor meeting",
+              duration: newDuration
+            },
+          }
+        );
+
+        approvedLeaves.push({
+          employeeId,
+          leaveType,
+          totalDays: leave.totalDays,
+          duration: newDuration,
+          leaveStartDate: leave.leaveStartDate,
+          leaveEndDate: leave.leaveEndDate,
+          status: "Approved",
+          approvedDateTime: dateTime,
+          remarks: "Auto-approved: Vendor meeting",
+        });
+
+        console.log(`Auto-approved vendor meeting for Employee ${employeeId} with updated duration ${newDuration}`);
+        continue;
+      }
+
 
       // Get current leave balance for the leaveType
       let availableLeaveBal = parseFloat(employee.leaveBalance[leaveType] || "0");
@@ -460,7 +500,7 @@ const approvedPendingLeaves = async (req, res) => {
               status: "Approved",
               approvedDateTime: dateTime,
               remarks: "Action taken automatically at month end.",
-            }
+            },
           }
         );
 
@@ -473,10 +513,9 @@ const approvedPendingLeaves = async (req, res) => {
           leaveEndDate: leave.leaveEndDate,
           status: "Approved",
           approvedDateTime: dateTime,
-          remarks: "Action taken automatically at month end."
+          remarks: "Action taken automatically at month end.",
         });
       } else {
-        // console.log(`Insufficient ${leaveType} balance for Employee ${employeeId}. Required: ${deductedDays}, Available: ${availableLeaveBal}`);
         insufficientBalanceLeaves.push({
           employeeId,
           leaveType,
@@ -486,6 +525,8 @@ const approvedPendingLeaves = async (req, res) => {
           status: "Rejected",
           approvedDateTime: dateTime,
         });
+
+        console.log(`Insufficient ${leaveType} balance for Employee ${employeeId}.`);
       }
     }
 
@@ -506,6 +547,7 @@ const approvedPendingLeaves = async (req, res) => {
     });
   }
 };
+
 
 
 const generateUninformedLeave = async (req, res) => {
@@ -1618,7 +1660,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
       if (status === "Full Day") {
         return sum + 1;
       } else if (status === "Half Day") {
-        if (leaveType === "regularized" || leaveType === "shortleave") {
+        if (leaveType === "regularized" || leaveType === "shortleave" || leaveType === "vendor-meeting") {
           return sum + 1; // Upgrade Half Day to Full Day
         }
         return sum + 0.5; // Normal Half Day
@@ -1626,7 +1668,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
 
       return sum; 
     }, 0);
-
+    
     if (aggResult.length > 0) {
       return res.status(200).json({
         statusCode: 200,

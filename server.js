@@ -19,6 +19,26 @@ const path = require("path");
 // const {startAttendanceCronJob, startUpdateAttendanceCronJob} = require("./utils/attendanceCronJob.js");
 const { startRemoveAttendanceDuplicateRecords } = require("./controllers/mainController.js");
 
+// for raphql
+const { ApolloServer } = require('apollo-server-express');
+const typeDefs = require('./graphql/typeDefs.js');
+const resolvers = require('./graphql/resolvers.js');
+
+async function startApolloServer() {
+  const server = new ApolloServer({
+    typeDefs,
+    resolvers
+  });
+
+  await server.start();
+  server.applyMiddleware({ app });
+}
+
+startApolloServer(); // Start Apollo Server
+// end for graphql  
+
+
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 

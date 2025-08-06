@@ -13,6 +13,7 @@
   "dependencies": {
     "@aws-sdk/abort-controller": "^3.374.0",
     "@aws-sdk/client-s3": "^3.717.0",
+    "apollo-server-express": "^3.13.0",
     "aws-sdk": "^2.1692.0",
     "bcrypt": "^5.1.1",
     "body-parser": "^1.20.3",
@@ -23,6 +24,7 @@
     "express-rate-limit": "^7.5.0",
     "fernet": "^0.3.3",
     "googleapis": "^149.0.0",
+    "graphql": "^16.11.0",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
     "moment": "^2.30.1",
