@@ -13,6 +13,7 @@ const AttendanceLogModel = require("../models/attendanceLogModel");
 // console.log(process.env.JWT_SECRET)
 const moment = require('moment');
 const trackolapAttendanceModel = require("../models/trackolapAttendanceModel");
+const taxDeclarationModel = require("../models/taxDeclarationModel"); // Replace with your model
 
 
 const addNewHoliday = async (req, res) => {
@@ -708,6 +709,119 @@ const addTrackolapAttendance = async (req, res) => {
 };
 
 
+const addTaxDeclaration = async (req, res) => {
+    try {
+        // Base schema (common to both regimes)
+        const baseSchema = {
+            taxRegime: Joi.string().valid("Old", "New").required(),
+            employeeName: Joi.string().required(),
+            employeeId: Joi.string().required(),
+            designation: Joi.string().required(),
+            dateOfJoining: Joi.string().required(),
+            gender: Joi.string().required(),
+            panNumber: Joi.string().required(),
+            contactNumber: Joi.string().required()
+        };
+
+        // Old Tax Regime extra fields
+        const oldRegimeExtraSchema = {
+            residentialAddress: Joi.string().allow("").optional(),
+            rentPayablePerMonth: Joi.string().allow("").optional(),
+            rentStartDate: Joi.string().allow("").optional(),
+            changesInRentAmount: Joi.string().allow("").optional(),
+            landlordName: Joi.string().allow("").optional(),
+            landlordPan: Joi.string().allow("").optional(),
+            completeAddressOfRentedProperty: Joi.string().allow("").optional(),
+            deductions: Joi.object().optional(),
+            housingLoan: Joi.object().optional(),
+            declaration: Joi.object().optional()
+        };
+
+        // Select schema based on taxRegime
+        let schema;
+        if (req.body.taxRegime === "Old") {
+            schema = Joi.object({ ...baseSchema, ...oldRegimeExtraSchema });
+        } else {
+            schema = Joi.object(baseSchema);
+        }
+
+        // Validate request body
+        const result = schema.validate(req.body);
+        if (result.error) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: result.error.details[0].message
+            });
+        }
+
+        // Auto-remove old regime fields if New Tax Regime is selected
+        let cleanedData = { ...req.body };
+        if (req.body.taxRegime === "New") {
+            delete cleanedData.residentialAddress;
+            delete cleanedData.rentPayablePerMonth;
+            delete cleanedData.rentStartDate;
+            delete cleanedData.changesInRentAmount;
+            delete cleanedData.landlordName;
+            delete cleanedData.landlordPan;
+            delete cleanedData.completeAddressOfRentedProperty;
+            delete cleanedData.deductions;
+            delete cleanedData.housingLoan;
+            delete cleanedData.declaration;
+        }
+
+        // Save to MongoDB
+        const newDeclaration = new taxDeclarationModel(cleanedData);
+        const savedDeclaration = await newDeclaration.save();
+
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Tax declaration submitted successfully.",
+            data: savedDeclaration
+        });
+
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message
+        });
+    }
+};
+
+
+const getAllTaxDeclarations = async (req, res) => {
+    try {
+        const allDeclarations = await taxDeclarationModel.find();
+
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Tax declarations fetched successfully.",
+            data: allDeclarations
+        });
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message
+        });
+    }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
 module.exports = {
     addNewHoliday,
     getHolidayList,
@@ -721,5 +835,7 @@ module.exports = {
     getEmpAttendanceCount,
     getEmpLeaveCount,
     addTrackolapAttendance,
-    getTrackolapAttendance
+    getTrackolapAttendance,
+    addTaxDeclaration,
+    getAllTaxDeclarations
 }

@@ -25,5 +25,8 @@ router.get('/get-emp-leaves-count', commonController.getEmpLeaveCount);
 router.post('/add-trackolap-attendance', commonController.addTrackolapAttendance);
 router.get('/get-trackolap-attendance', commonController.getTrackolapAttendance); 
 
+// Emp tds routes 
+router.post('/add-declaration', commonController.addTaxDeclaration);
+router.get('/tax-declarations', commonController.getAllTaxDeclarations);
 
 module.exports = router;

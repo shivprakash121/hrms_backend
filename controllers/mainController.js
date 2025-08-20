@@ -443,9 +443,9 @@ const approvedPendingLeaves = async (req, res) => {
         let newDuration = leave.duration;
 
         if (["0.5", ".5", "first-half", "second-half"].includes(leave.duration)) {
-          newDuration = "270";
+          newDuration = "240";
         } else if (["1", "1.0", "full-day"].includes(leave.duration)) {
-          newDuration = "540";
+          newDuration = "500";
         }
 
         // Update the leave document
@@ -635,7 +635,7 @@ const generateUninformedLeave = async (req, res) => {
       if (attendance.managerId === null) return false;
 
       // Check Duration
-      if (attendance.Duration < 510) return true;
+      if (attendance.Duration < 500) return true;
 
       // Parse InTime and compare
       if (attendance.InTime) {
@@ -691,8 +691,8 @@ const generateUninformedLeave = async (req, res) => {
     const leaveRecords = filteredData.map(attendance => {
       const attendanceDate = attendance.AttendanceDate.toISOString().split("T")[0];
       const totalDays =
-        attendance.Duration < 255 ? "1" :
-          attendance.Duration >= 255 && attendance.Duration < 510 ? "0.5" :
+        attendance.Duration < 240 ? "1" :
+          attendance.Duration >= 240 && attendance.Duration < 500 ? "0.5" :
             attendance.InTime && attendance.InTime.split(" ")[1] > "09:15:59" ? "0.5" :
               "0";
 
@@ -1563,9 +1563,9 @@ const getAttendanceDaysByMonth = async (req, res) => {
 
       if (isLate) {
         return "Half Day"; // Late overrides Full Day
-      } else if (totalMinutes >= 510) {
+      } else if (totalMinutes >= 500) {
         return "Full Day";
-      } else if (totalMinutes >= 270) {
+      } else if (totalMinutes >= 240) {
         return "Half Day";
       } else {
         return "Absent";

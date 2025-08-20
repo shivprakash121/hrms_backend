@@ -6,16 +6,24 @@ const typeDefs = gql`
     EmployeeName: String!
     EmployeeCode: String
     EmployeeId: Int!
+    Email: String
     AttendanceDate: String!
     InTime: String
     OutTime: String
     Duration: Int
     Status: String
     PunchRecords: String
-    # Add more fields as needed
+  }
+
+  type AttendanceLogPage {
+    total: Int!
+    page: Int!
+    limit: Int!
+    data: [AttendanceLog]!
   }
 
   type Query {
+    # Search by EmployeeCode or EmployeeId
     attendanceLogs(
       employeeCode: String
       employeeId: Int
@@ -23,8 +31,23 @@ const typeDefs = gql`
       dateTo: String
       page: Int
       limit: Int
-    ): [AttendanceLog]
+    ): AttendanceLogPage
+
+    # Search by EmployeeName or Email
+    attendanceLogsByNameOrEmail(
+      employeeName: String
+      email: String
+      dateFrom: String
+      dateTo: String
+      page: Int
+      limit: Int
+    ): AttendanceLogPage
+  }
+
+  type Mutation {
+    _empty: String
   }
 `;
 
 module.exports = typeDefs;
+

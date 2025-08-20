@@ -67,5 +67,4 @@ const leaveTakenHistorySchema = new mongoose.Schema({
   }
 });
 
-
 module.exports = mongoose.model("leaveTakenHistory", leaveTakenHistorySchema);

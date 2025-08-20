@@ -21,20 +21,18 @@ const { startRemoveAttendanceDuplicateRecords } = require("./controllers/mainCon
 
 // for raphql
 const { ApolloServer } = require('apollo-server-express');
-const typeDefs = require('./graphql/typeDefs.js');
-const resolvers = require('./graphql/resolvers.js');
+const schema = require('./graphql/schema');
 
 async function startApolloServer() {
   const server = new ApolloServer({
-    typeDefs,
-    resolvers
+    schema
   });
-
+  
   await server.start();
   server.applyMiddleware({ app });
 }
 
-startApolloServer(); // Start Apollo Server
+startApolloServer();
 // end for graphql  
 
 
@@ -1114,8 +1112,8 @@ const calculateAttendDuration = async (req, res) => {
       console.log(`Updated employee ${employeeId} - Duration: ${totalDuration} minutes`);
     }
 
-    console.log("All durations calculated and updated.");
-
+    // console.log("All durations calculated and updated.");
+    
     if (res) {
       return res.status(200).json({
         statusCode: 200,
@@ -1163,27 +1161,97 @@ const calculateAttendDuration = async (req, res) => {
 //   console.error("Decryption failed:", e.message);
 // }
 
-//////////////////////
+// function  removeDuuplicateElem(arr) {
+//     return arr.filter((item, index) => arr.indexOf(item) === index);
+// }
+
+// console.log(removeDuuplicateElem([2,3,4,5,6,2,3,4,5,6]))
+
+// function removeDuuplicateElem(arr) {
+//     return arr.reduce((resArr, item) => {
+//         if(!resArr.includes(item)) {
+//             resArr.push(item);
+//         }
+//         return resArr;
+//     }, [])
+// }
+
+// console.log(removeDuuplicateElem([2,3,4,5,6,2,3,4,5,6]))
+
+// function removeDuuplicateElem(arr) {
+//     let result = [];
+
+//     for (let i = 0; i < arr.length; i++) {
+//         let isDuplicate = false;
+
+//         for (let j = 0; j < result.length; j++) {
+//             if (arr[i] === result[j]) {
+//                 isDuplicate = true;
+//                 break;
+//             }
+//         }
+//         if (isDuplicate === false) {
+//             result.push(arr[i]);
+//         }
+//     }
+//     return result;
+// }
+
+// console.log(removeDuuplicateElem([2,3,4,5,6,2,3,4,5,6]))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Swagger API Docs available at http://localhost:${PORT}/api-docs`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

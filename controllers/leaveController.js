@@ -261,8 +261,8 @@ const applyForRegularization = async (req, res) => {
             reason: Joi.string().required(),
             approvedBy: Joi.string().allow("").optional(),
         });
+
         let result = schema.validate(req.body);
-        // console.log(req.body) 
         if (result.error) {
             return res.status(400).json({
                 statusValue: "FAIL",
@@ -280,6 +280,7 @@ const applyForRegularization = async (req, res) => {
                 message: "Token is required",
             });
         }
+
         // Decode the token to get employee details
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         if (!decoded) {
@@ -289,8 +290,8 @@ const applyForRegularization = async (req, res) => {
                 message: "Invalid token",
             });
         }
-        const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
-        // end user
+
+        const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId });
 
         let { leaveStartDate, reason, approvedBy, leaveType } = req.body;
         if (!leaveStartDate || !moment(leaveStartDate, "YYYY-MM-DD", true).isValid()) {
@@ -301,33 +302,20 @@ const applyForRegularization = async (req, res) => {
             });
         }
 
-        const today = moment().startOf('day'); // Current date
-        const maxDate = today.clone().subtract(1, 'day'); // Yesterday
-        const minDate = today.clone().subtract(7, 'days');  // 7 days before today (excluding today)
-
         const leaveDate = moment(leaveStartDate, "YYYY-MM-DD", true);
 
-        if (leaveType === "regularized") {
-            if (leaveDate.isBefore(minDate) || leaveDate.isAfter(maxDate)) {
-                return res.status(400).json({
-                    statusValue: "FAIL",
-                    statusCode: 400,
-                    message: "leaveStartDate must be within the past 7 days (excluding today).",
-                });
-            }
-        } else if (leaveType === "shortLeave") {
-            if (!leaveDate.isSame(today, 'day')) {
-                return res.status(400).json({
-                    statusCode: 400,
-                    statusValue: "FAIL",
-                    message: "Short leave can only be applied for the current date.",
-                });
-            }
+        // Get current month start and end
+        const startOfMonth = moment().startOf("month");
+        const endOfMonth = moment().endOf("month");
+
+        // Both leave types must be within current month
+        if (!leaveDate.isBetween(startOfMonth, endOfMonth, "day", "[]")) {
+            return res.status(400).json({
+                statusValue: "FAIL",
+                statusCode: 400,
+                message: `${leaveType} can only be applied within the current month.`,
+            });
         }
-        // Get current month start and end dates
-        // Get current month start and end as ISO date strings
-        const startOfMonth = moment().startOf('month').toDate();
-        const endOfMonth = moment().endOf('month').toDate();
 
         // MongoDB query using $expr to compare string dates
         const checkMaxLimitReg = await leaveTakenHistoryModel.find({
@@ -335,26 +323,29 @@ const applyForRegularization = async (req, res) => {
             leaveType: leaveType,
             $expr: {
                 $and: [
-                    { $lte: [{ $toDate: "$leaveStartDate" }, endOfMonth] },
-                    { $gte: [{ $toDate: "$leaveEndDate" }, startOfMonth] }
+                    { $lte: [{ $toDate: "$leaveStartDate" }, endOfMonth.toDate()] },
+                    { $gte: [{ $toDate: "$leaveEndDate" }, startOfMonth.toDate()] }
                 ]
             }
         });
+
         // Check if the count exceeds the limit
         if (leaveType === "regularized") {
             const checkAttendance = await AttendanceLogModel.findOne({
-            $and: [
+                $and: [
                     { AttendanceDate: new Date(req.body.leaveStartDate) },
                     { EmployeeCode: req.params.employeeId }
                 ]
-            })
-            if (checkAttendance.Duration <= 480) {
+            });
+
+            if (checkAttendance && checkAttendance.Duration <= 480) {
                 return res.status(400).json({
                     message: "Your work duration is less than 8 hours.",
                     statusCode: 400,
                     statusValue: "VALIDATION_ERROR",
                 });
             }
+
             if (checkMaxLimitReg.length >= 2) {
                 return res.status(400).json({
                     message: "You have already reached the maximum regularization limit for this month.",
@@ -372,7 +363,7 @@ const applyForRegularization = async (req, res) => {
             }
         }
 
-        // get current date and time
+        // get current date and time (India timezone)
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
             const date = new Date(indiaTime);
@@ -380,7 +371,7 @@ const applyForRegularization = async (req, res) => {
             const pad = (n) => (n < 10 ? `0${n}` : n);
 
             const year = date.getFullYear();
-            const month = pad(date.getMonth() + 1); // Months are 0-based
+            const month = pad(date.getMonth() + 1);
             const day = pad(date.getDate());
             const hours = pad(date.getHours());
             const minutes = pad(date.getMinutes());
@@ -389,15 +380,16 @@ const applyForRegularization = async (req, res) => {
             return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
         };
 
-        const dateTime = getIndiaCurrentDateTime()
+        const dateTime = getIndiaCurrentDateTime();
+
         // check attendance for employee
         const checkAttendance = await AttendanceLogModel.findOne({
             $and: [
                 { AttendanceDate: new Date(req.body.leaveStartDate) },
                 { EmployeeCode: req.params.employeeId },
             ]
-        })
-        // console.log(checkAttendance.Status)
+        });
+
         if (!checkAttendance) {
             return res.status(400).json({
                 message: "We don't have your attendance log on this date.",
@@ -405,7 +397,7 @@ const applyForRegularization = async (req, res) => {
                 statusValue: "false",
             });
         }
-        // console.log(12, checkAttendance)
+
         const bodyDoc = new leaveTakenHistoryModel({
             employeeId: req.params.employeeId,
             leaveType: leaveType,
@@ -416,7 +408,7 @@ const applyForRegularization = async (req, res) => {
             approvedBy: getUser.managerId,
             status: "Pending",
             dateTime: dateTime
-        })
+        });
 
         const saveDoc = await bodyDoc.save();
         if (saveDoc) {
@@ -426,6 +418,7 @@ const applyForRegularization = async (req, res) => {
                 message: "Leave applied successfully.",
             });
         }
+
         return res.status(400).json({
             message: "You have provided wrong id",
             statusCode: 400,
@@ -439,7 +432,7 @@ const applyForRegularization = async (req, res) => {
             error: error.message,
         });
     }
-}
+};
 
 
 const applyForVendorMeeting = async (req, res) => {
@@ -500,11 +493,11 @@ const applyForVendorMeeting = async (req, res) => {
         }
 
         // Map duration to totalDays
-        let durationMinutes = "540";
+        let durationMinutes = "500";
         if (["0.5", ".5", "first-half", "second-half"].includes(duration)) {
-            durationMinutes = "270";
+            durationMinutes = "240";
         } else if (["1", "1.0", "", "full-day"].includes(duration)) {
-            durationMinutes = "540";
+            durationMinutes = "500";
         }
         
         // get current date and time
@@ -546,7 +539,7 @@ const applyForVendorMeeting = async (req, res) => {
             leaveType: leaveType,
             leaveStartDate: leaveStartDate,
             leaveEndDate: leaveStartDate,
-            totalDays: durationMinutes === "270" ? "0.5" : "1",
+            totalDays: durationMinutes === "240" ? "0.5" : "1",
             reason: reason,
             approvedBy: getUser.managerId || "System",
             status: "Pending",
