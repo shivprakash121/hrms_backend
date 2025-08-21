@@ -254,184 +254,194 @@ const applyLeave = async (req, res) => {
 
 
 const applyForRegularization = async (req, res) => {
-    try {
-        const schema = Joi.object({
-            leaveType: Joi.string().valid("regularized", "shortLeave").required(),
-            leaveStartDate: Joi.string().required(),
-            reason: Joi.string().required(),
-            approvedBy: Joi.string().allow("").optional(),
-        });
+  try {
+    const schema = Joi.object({
+      leaveType: Joi.string().valid("regularized", "shortLeave").required(),
+      leaveStartDate: Joi.string().required(),
+      reason: Joi.string().required(),
+      approvedBy: Joi.string().allow("").optional(),
+    });
 
-        let result = schema.validate(req.body);
-        if (result.error) {
-            return res.status(400).json({
-                statusValue: "FAIL",
-                statusCode: 400,
-                message: result.error.details[0].message,
-            });
-        }
-
-        // Extract the token from the Authorization header
-        const token = req.headers.authorization?.split(" ")[1];
-        if (!token) {
-            return res.status(400).json({
-                statusCode: 400,
-                statusValue: "FAIL",
-                message: "Token is required",
-            });
-        }
-
-        // Decode the token to get employee details
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        if (!decoded) {
-            return res.status(400).json({
-                statusCode: 400,
-                statusValue: "FAIL",
-                message: "Invalid token",
-            });
-        }
-
-        const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId });
-
-        let { leaveStartDate, reason, approvedBy, leaveType } = req.body;
-        if (!leaveStartDate || !moment(leaveStartDate, "YYYY-MM-DD", true).isValid()) {
-            return res.status(400).json({
-                statusValue: "FAIL",
-                statusCode: 400,
-                message: "Invalid date format for leaveStartDate. Use 'YYYY-MM-DD'.",
-            });
-        }
-
-        const leaveDate = moment(leaveStartDate, "YYYY-MM-DD", true);
-
-        // Get current month start and end
-        const startOfMonth = moment().startOf("month");
-        const endOfMonth = moment().endOf("month");
-
-        // Both leave types must be within current month
-        if (!leaveDate.isBetween(startOfMonth, endOfMonth, "day", "[]")) {
-            return res.status(400).json({
-                statusValue: "FAIL",
-                statusCode: 400,
-                message: `${leaveType} can only be applied within the current month.`,
-            });
-        }
-
-        // MongoDB query using $expr to compare string dates
-        const checkMaxLimitReg = await leaveTakenHistoryModel.find({
-            employeeId: req.params.employeeId,
-            leaveType: leaveType,
-            $expr: {
-                $and: [
-                    { $lte: [{ $toDate: "$leaveStartDate" }, endOfMonth.toDate()] },
-                    { $gte: [{ $toDate: "$leaveEndDate" }, startOfMonth.toDate()] }
-                ]
-            }
-        });
-
-        // Check if the count exceeds the limit
-        if (leaveType === "regularized") {
-            const checkAttendance = await AttendanceLogModel.findOne({
-                $and: [
-                    { AttendanceDate: new Date(req.body.leaveStartDate) },
-                    { EmployeeCode: req.params.employeeId }
-                ]
-            });
-
-            if (checkAttendance && checkAttendance.Duration <= 480) {
-                return res.status(400).json({
-                    message: "Your work duration is less than 8 hours.",
-                    statusCode: 400,
-                    statusValue: "VALIDATION_ERROR",
-                });
-            }
-
-            if (checkMaxLimitReg.length >= 2) {
-                return res.status(400).json({
-                    message: "You have already reached the maximum regularization limit for this month.",
-                    statusCode: 400,
-                    statusValue: "LIMIT_EXCEEDED",
-                });
-            }
-        } else if (leaveType === "shortLeave") {
-            if (checkMaxLimitReg.length >= 1) {
-                return res.status(400).json({
-                    message: "You have already reached the maximum short leave limit for this month.",
-                    statusCode: 400,
-                    statusValue: "LIMIT_EXCEEDED",
-                });
-            }
-        }
-
-        // get current date and time (India timezone)
-        const getIndiaCurrentDateTime = () => {
-            const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
-            const date = new Date(indiaTime);
-
-            const pad = (n) => (n < 10 ? `0${n}` : n);
-
-            const year = date.getFullYear();
-            const month = pad(date.getMonth() + 1);
-            const day = pad(date.getDate());
-            const hours = pad(date.getHours());
-            const minutes = pad(date.getMinutes());
-            const seconds = pad(date.getSeconds());
-
-            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-        };
-
-        const dateTime = getIndiaCurrentDateTime();
-
-        // check attendance for employee
-        const checkAttendance = await AttendanceLogModel.findOne({
-            $and: [
-                { AttendanceDate: new Date(req.body.leaveStartDate) },
-                { EmployeeCode: req.params.employeeId },
-            ]
-        });
-
-        if (!checkAttendance) {
-            return res.status(400).json({
-                message: "We don't have your attendance log on this date.",
-                statusCode: 400,
-                statusValue: "false",
-            });
-        }
-
-        const bodyDoc = new leaveTakenHistoryModel({
-            employeeId: req.params.employeeId,
-            leaveType: leaveType,
-            leaveStartDate: leaveStartDate,
-            leaveEndDate: leaveStartDate,
-            totalDays: "1",
-            reason: reason,
-            approvedBy: getUser.managerId,
-            status: "Pending",
-            dateTime: dateTime
-        });
-
-        const saveDoc = await bodyDoc.save();
-        if (saveDoc) {
-            return res.status(201).json({
-                statusCode: 200,
-                statusValue: "SUCCESS",
-                message: "Leave applied successfully.",
-            });
-        }
-
-        return res.status(400).json({
-            message: "You have provided wrong id",
-            statusCode: 400,
-            statusValue: "FAIL",
-        });
-    } catch (error) {
-        return res.status(500).json({
-            statusCode: 500,
-            statusValue: "FAIL",
-            message: error.message,
-            error: error.message,
-        });
+    let result = schema.validate(req.body);
+    if (result.error) {
+      return res.status(400).json({
+        statusValue: "FAIL",
+        statusCode: 400,
+        message: result.error.details[0].message,
+      });
     }
+
+    // Extract the token from the Authorization header
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(400).json({
+        statusCode: 400,
+        statusValue: "FAIL",
+        message: "Token is required",
+      });
+    }
+
+    // Decode the token to get employee details
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded) {
+      return res.status(400).json({
+        statusCode: 400,
+        statusValue: "FAIL",
+        message: "Invalid token",
+      });
+    }
+
+    const getUser = await employeeModel.findOne({
+      employeeId: decoded.employeeId,
+    });
+    let { leaveStartDate, reason, approvedBy, leaveType } = req.body;
+
+    if (
+      !leaveStartDate ||
+      !moment(leaveStartDate, "YYYY-MM-DD", true).isValid()
+    ) {
+      return res.status(400).json({
+        statusValue: "FAIL",
+        statusCode: 400,
+        message: "Invalid date format for leaveStartDate. Use 'YYYY-MM-DD'.",
+      });
+    }
+
+    const leaveDate = moment(leaveStartDate, "YYYY-MM-DD", true);
+    const today = moment().endOf("day");
+    const past35Days = moment().subtract(35, "days").startOf("day");
+
+    if (!leaveDate.isBetween(past35Days, today, "day", "[]")) {
+      return res.status(400).json({
+        statusValue: "FAIL",
+        statusCode: 400,
+        message: `${leaveType} can only be applied within the last 35 days.`,
+      });
+    }
+
+    // Get month range based on leaveStartDate
+    const startOfMonth = moment(leaveStartDate, "YYYY-MM-DD").startOf("month");
+    const endOfMonth = moment(leaveStartDate, "YYYY-MM-DD").endOf("month");
+
+    // MongoDB query using $expr to compare string dates
+    const checkMaxLimitReg = await leaveTakenHistoryModel.find({
+      employeeId: req.params.employeeId,
+      leaveType: leaveType,
+      $expr: {
+        $and: [
+          { $lte: [{ $toDate: "$leaveStartDate" }, endOfMonth.toDate()] },
+          { $gte: [{ $toDate: "$leaveEndDate" }, startOfMonth.toDate()] },
+        ],
+      },
+    });
+
+    // Check if the count exceeds the limit
+    if (leaveType === "regularized") {
+      const checkAttendance = await AttendanceLogModel.findOne({
+        $and: [
+          { AttendanceDate: new Date(req.body.leaveStartDate) },
+          { EmployeeCode: req.params.employeeId },
+        ],
+      });
+
+      if (checkAttendance && checkAttendance.Duration <= 480) {
+        return res.status(400).json({
+          message: "Your work duration is less than 8 hours.",
+          statusCode: 400,
+          statusValue: "VALIDATION_ERROR",
+        });
+      }
+
+      if (checkMaxLimitReg.length >= 2) {
+        return res.status(400).json({
+          message:
+            "You have already reached the maximum regularization limit for this month.",
+          statusCode: 400,
+          statusValue: "LIMIT_EXCEEDED",
+        });
+      }
+    } else if (leaveType === "shortLeave") {
+      if (checkMaxLimitReg.length >= 1) {
+        return res.status(400).json({
+          message:
+            "You have already reached the maximum short leave limit for this month.",
+          statusCode: 400,
+          statusValue: "LIMIT_EXCEEDED",
+        });
+      }
+    }
+
+    // get current date and time (India timezone)
+    const getIndiaCurrentDateTime = () => {
+      const indiaTime = new Date().toLocaleString("en-US", {
+        timeZone: "Asia/Kolkata",
+      });
+      const date = new Date(indiaTime);
+
+      const pad = (n) => (n < 10 ? `0${n}` : n);
+
+      const year = date.getFullYear();
+      const month = pad(date.getMonth() + 1);
+      const day = pad(date.getDate());
+      const hours = pad(date.getHours());
+      const minutes = pad(date.getMinutes());
+      const seconds = pad(date.getSeconds());
+
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    };
+
+    const dateTime = getIndiaCurrentDateTime();
+
+    // check attendance for employee
+    const checkAttendance = await AttendanceLogModel.findOne({
+      $and: [
+        { AttendanceDate: new Date(req.body.leaveStartDate) },
+        { EmployeeCode: req.params.employeeId },
+      ],
+    });
+
+    if (!checkAttendance) {
+      return res.status(400).json({
+        message: "We don't have your attendance log on this date.",
+        statusCode: 400,
+        statusValue: "false",
+      });
+    }
+
+    const bodyDoc = new leaveTakenHistoryModel({
+      employeeId: req.params.employeeId,
+      leaveType: leaveType,
+      leaveStartDate: leaveStartDate,
+      leaveEndDate: leaveStartDate,
+      totalDays: "1",
+      reason: reason,
+      approvedBy: getUser.managerId,
+      status: "Pending",
+      dateTime: dateTime,
+    });
+
+    const saveDoc = await bodyDoc.save();
+    if (saveDoc) {
+      return res.status(201).json({
+        statusCode: 200,
+        statusValue: "SUCCESS",
+        message: "Leave applied successfully.",
+      });
+    }
+
+    return res.status(400).json({
+      message: "You have provided wrong id",
+      statusCode: 400,
+      statusValue: "FAIL",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      statusCode: 500,
+      statusValue: "FAIL",
+      message: error.message,
+      error: error.message,
+    });
+  }
 };
 
 
