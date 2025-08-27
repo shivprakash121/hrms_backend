@@ -774,7 +774,49 @@ const resetForgetPassword = async (req, res) => {
     }
 };
 
-  
+
+const updateEmpSalaryDetailsById = async (req, res) => {
+  try {
+    const { employeeId } = req.params;
+    const updateData = req.body;
+
+    let updateFields = {};
+    if (updateData.employee_basic_details) {
+      for (let key in updateData.employee_basic_details) {
+        updateFields[`employee_basic_details.${key}`] =
+          updateData.employee_basic_details[key];
+      }
+    }
+    if (updateData.salary_details) {
+      for (let key in updateData.salary_details) {
+        updateFields[`salary_details.${key}`] = updateData.salary_details[key];
+      }
+    }
+     
+    const updatedEmployee = await employeeModel.findOneAndUpdate(
+      { employeeId },
+      { $set: updateFields },
+      { new: true, upsert: true } 
+    );
+    
+    return res.status(200).json({
+      statusCode: 200,
+      statusValue: "SUCCESS",
+      message: "Employee updated successfully",
+      data: updatedEmployee,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      statusCode: 500,
+      statusValue: "FAIL",
+      message: "Error updating employee",
+      error: error.message,
+    });
+  }
+};  
+
+
 
 
 
@@ -790,5 +832,6 @@ module.exports = {
     resetForgetPassword,
     verifyOtp,
     generateNewPassword,
-    getTodayOnleaveList
+    getTodayOnleaveList,
+    updateEmpSalaryDetailsById
 }

@@ -450,9 +450,11 @@ const applyForVendorMeeting = async (req, res) => {
         const schema = Joi.object({
             leaveType: Joi.string().valid("vendor-meeting").required(),
             leaveStartDate: Joi.string().required(),
+            leaveEndDate: Joi.string().required(),
             reason: Joi.string().required(),
+            totalDays: Joi.string().required(),
             approvedBy: Joi.string().allow("").optional(),
-            duration:Joi.string().required(),
+            duration:Joi.string().allow("").optional(),
         });
         let result = schema.validate(req.body);
         // console.log(11, req.body) 
@@ -484,7 +486,7 @@ const applyForVendorMeeting = async (req, res) => {
         }
         const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
         
-        let { leaveStartDate, reason, approvedBy, leaveType, duration } = req.body;
+        let { leaveStartDate, leaveEndDate, reason, approvedBy, leaveType, duration, totalDays } = req.body;
         
         // Check if already applied for the same date
         const alreadyApplied = await leaveTakenHistoryModel.findOne({
@@ -501,15 +503,17 @@ const applyForVendorMeeting = async (req, res) => {
                 message: "You have already applied for vendor-meeting on this date.",
             })
         }
-
-        // Map duration to totalDays
-        let durationMinutes = "500";
-        if (["0.5", ".5", "first-half", "second-half"].includes(duration)) {
-            durationMinutes = "240";
-        } else if (["1", "1.0", "", "full-day"].includes(duration)) {
-            durationMinutes = "500";
-        }
         
+         // Handle duration automatically
+        let finalDuration;
+        if (parseFloat(totalDays) > 0.5) {
+            finalDuration = "fullDay";
+        } else if (totalDays === "0.5" || totalDays === ".5") {
+            finalDuration = duration ? duration.toString() : "firstHalf"; 
+        } else {
+            finalDuration = "fullDay";
+        }
+
         // get current date and time
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
@@ -528,34 +532,20 @@ const applyForVendorMeeting = async (req, res) => {
         };
         
         const dateTime = getIndiaCurrentDateTime()
-        // check attendance for employee
-        const checkAttendance = await AttendanceLogModel.findOne({
-            $and: [
-                { AttendanceDate: new Date(req.body.leaveStartDate) },
-                { EmployeeCode: req.params.employeeId },
-            ]
-        })
-        // console.log(checkAttendance.Status)
-        if (!checkAttendance) {
-            return res.status(400).json({
-                message: "We don't have your attendance log on this date.",
-                statusCode: 400,
-                statusValue: "false",
-            });
-        }
-        // console.log(12, checkAttendance)
+        
+         // Save document (all values stored as string)
         const bodyDoc = new leaveTakenHistoryModel({
-            employeeId: req.params.employeeId,
-            leaveType: leaveType,
-            leaveStartDate: leaveStartDate,
-            leaveEndDate: leaveStartDate,
-            totalDays: durationMinutes === "240" ? "0.5" : "1",
-            reason: reason,
-            approvedBy: getUser.managerId || "System",
-            status: "Pending",
-            dateTime: dateTime,
-            duration: durationMinutes,
-        })
+            employeeId: decoded.employeeId.toString(),
+            leaveType: leaveType.toString(),
+            leaveStartDate: leaveStartDate.toString(),
+            leaveEndDate: leaveEndDate.toString(),
+            totalDays: totalDays.toString(),
+            reason: reason.toString(),
+            approvedBy: (getUser.managerId || "System").toString(),
+            status: "Pending".toString(),
+            dateTime: dateTime.toString(),
+            duration: finalDuration.toString()
+        });
         
         const saveDoc = await bodyDoc.save();
         if (saveDoc) {
@@ -563,7 +553,7 @@ const applyForVendorMeeting = async (req, res) => {
                 statusCode: 200,
                 statusValue: "SUCCESS",
                 message: "Leave applied successfully.",
-            });
+            }); 
         }
         return res.status(400).json({
             message: "You have provided wrong id",

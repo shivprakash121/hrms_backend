@@ -73,6 +73,29 @@ const employeeSchema = new mongoose.Schema({
   isNotice:{ type: Boolean, default: false },
   isWorking:{ type: Boolean, default: true },
   isInhouse:{ type: Boolean, default: true },
+  employee_basic_details: {
+    bank_name: { type: String, default: "" },
+    bank_ifsc: { type: String, default: "" },
+    bank_account: { type: String, default: "" },
+    employee_uan: { type: String, default: "" },
+    employee_esic: { type: String, default: "" },
+    payment_mode: { type: String, default: "" }
+  },
+  salary_details: {
+    basic_salary: { type: String, default: "0" },
+    hra: { type: String, default: "0" },
+    travel_allowances: { type: String, default: "0" },
+    special_allowances: { type: String, default: "0" },
+    arrears: { type: String, default: "0" },
+    bonus_or_others: { type: String, default: "0" },
+    employee_pf: { type: String, default: "0" },
+    employee_esi: { type: String, default: "0" },
+    tds: { type: String, default: "0" },
+    loan_advance: { type: String, default: "0" },
+    penalty: { type: String, default: "0" },
+    transport_or_others: { type: String, default: "0" },
+    net_pay: { type: String, default: "0" }
+  },
 },{
     timestamps: true
 });

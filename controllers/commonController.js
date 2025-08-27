@@ -14,6 +14,7 @@ const AttendanceLogModel = require("../models/attendanceLogModel");
 const moment = require('moment');
 const trackolapAttendanceModel = require("../models/trackolapAttendanceModel");
 const taxDeclarationModel = require("../models/taxDeclarationModel"); // Replace with your model
+const actionLogModel = require("../models/actionLogModel");
 
 
 const addNewHoliday = async (req, res) => {
@@ -810,8 +811,110 @@ const getAllTaxDeclarations = async (req, res) => {
     }
 };
 
+// POST API to add a log entry
+const addLogData = async (req, res) => {
+  try {
+    const { employeeId, description, actionType, entityType } = req.body;
+    const empDetails = await employeeModel.findOne({employeeId})
+
+    const newLog = new actionLogModel({
+      employeeId: employeeId || "",
+      description: description || "",
+      actionType: actionType || "",
+      entityType: entityType || "",
+      managerId: empDetails.managerId || ""
+    });
+
+    const savedLog = await newLog.save();
+
+    return res.status(201).json({
+      message: "Log data added successfully",
+      statusCode: 201,
+      statusValue: "SUCCESS",
+      data: savedLog
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Something went wrong",
+      statusCode: 500,
+      statusValue: "ERROR",
+      error: error.message
+    });
+  }
+};
 
 
+// GET API → fetch logs based on role
+const getAllLogs = async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(400).json({
+        statusCode: 400,
+        statusValue: "FAIL",
+        message: "Token is required",
+      });
+    }
+
+    // Decode token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded) {
+      return res.status(400).json({
+        statusCode: 400,
+        statusValue: "FAIL",
+        message: "Invalid token",
+      });
+    }
+
+    let ownLogs = [];
+    let teamLogs = [];
+    let allLogs = [];
+
+    if (decoded.role === "Employee") {
+      // Employee → only own logs
+      ownLogs = await actionLogModel
+        .find({ employeeId: decoded.employeeId })
+        .sort({ createdAt: -1 });
+
+    } else if (decoded.role === "Manager") {
+      // Manager → own logs + team logs
+      ownLogs = await actionLogModel
+        .find({ employeeId: decoded.employeeId })
+        .sort({ createdAt: -1 });
+
+      teamLogs = await actionLogModel
+        .find({
+          managerId: decoded.managerId,
+          managerId: { $ne: "" },
+          employeeId: { $ne: decoded.employeeId }, // avoid duplicating own logs
+        })
+        .sort({ createdAt: -1 });
+
+    } else if (decoded.role === "HR-Admin" || decoded.role === "Super-Admin") {
+      // HR-Admin & Super-Admin → all logs
+      allLogs = await actionLogModel
+        .find()
+        .sort({ createdAt: -1 });
+    }
+
+    return res.status(200).json({
+      message: "Logs fetched successfully",
+      statusCode: 200,
+      statusValue: "SUCCESS",
+      ownLogs: ownLogs.length ? ownLogs : undefined,
+      teamLogs: teamLogs.length ? teamLogs : undefined,
+      allLogs: allLogs.length ? allLogs : undefined,
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Something went wrong",
+      statusCode: 500,
+      statusValue: "ERROR",
+      error: error.message,
+    });
+  }
+};
 
 
 
@@ -837,5 +940,7 @@ module.exports = {
     addTrackolapAttendance,
     getTrackolapAttendance,
     addTaxDeclaration,
-    getAllTaxDeclarations
+    getAllTaxDeclarations,
+    addLogData,
+    getAllLogs
 }

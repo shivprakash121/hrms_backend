@@ -21,13 +21,13 @@ const authLimiter = rateLimit({
 router.post('/register', authController.registerEmployee);    
 router.post('/login', authLimiter, authController.employeeLogin);
 router.post('/logout', authMiddleware, authController.logout);
-
 router.post('/reset-password', authLimiter, authController.resetForgetPassword);  // reset password step 1
 router.post("/verify-otp", authController.verifyOtp);  // reset password step 2
 router.put("/generate-newpassword", authController.generateNewPassword);  // reset password step final   
 
 
 router.put('/update/:employeeId', authController.updateEmployeeById);  
+router.put('/update-emp-salary-details/:employeeId', authController.updateEmpSalaryDetailsById);  
 router.get('/get-all', authLimiter, authController.getAllEmployeeList);
 
 router.get('/get-emp-list-by-manager', authMiddleware, authController.getEmployeeListByManagerId); 

@@ -1178,19 +1178,64 @@ const calculateAttendDuration = async (req, res) => {
 
 // console.log(removeDuuplicateElem([2,3,4,5,6,2,3,4,5,6]))
 
-// function removeDuuplicateElem()
+// function removeDuuplicateElem(arr) {
+//     let resArr = [];
+
+//     for (let i = 0; i < arr.length; i++) {
+//         let isDuplicate = false;
+
+//         for (let j = 0; j < resArr.length; j++) {
+//             if (arr[i] === resArr[j]) {
+//                 isDuplicate = true;
+//                 break;
+//             }
+//         }
+//         if (isDuplicate === false) {
+//             resArr.push(arr[i]);
+//         }
+//     }
+//     return resArr;
+// }
+
+// console.log(removeDuuplicateElem([2,3,4,5,6,2,3,4,5,6]))
 
 
+// function flattenArray(arr, depth) {
+//     let result = [];
+
+//     for (let i = 0; i < arr.length; i++) {
+//         if (Array.isArray(arr[i] && depth > 0)) {
+//             result = result.concat(flattenArray(arr[i], depth-1));  // recursively call it
+//         } else {
+//             result.push(arr[i]);
+//         }
+//     }
+//     return result;
+// }
 
 
+// console.log(flattenArray([1,[2,3],[4,[5,[6]]]], 2))
 
 
+// function maxSubArr(arr) {
+//    let maxSofor = arr[0]  // by default 0 index val
+//    let currMax = arr[0]   // by default 0 index val
 
+//    for (let i = 0; i < arr.length; i++) {
+//     if (currMax + arr[i] > arr[i]) {
+//         currMax = currMax + arr[i];
+//     } else {
+//         currMax = arr[i];
+//     }
 
+//     if (currMax > maxSofor) {
+//         maxSofor = currMax;
+//     }
+//    }
+//    return maxSofor;
+// }
 
-
-
-
+// console.log(maxSubArr([1,-2,3,4,5,7]))
 
 
 

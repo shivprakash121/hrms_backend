@@ -29,4 +29,8 @@ router.get('/get-trackolap-attendance', commonController.getTrackolapAttendance)
 router.post('/add-declaration', commonController.addTaxDeclaration);
 router.get('/tax-declarations', commonController.getAllTaxDeclarations);
 
+// for logger only
+router.post('/save-log-data', commonController.addLogData);
+router.get('/get-logs-data', authMiddleware, commonController.getAllLogs);
+
 module.exports = router;
