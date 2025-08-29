@@ -1237,28 +1237,96 @@ const calculateAttendDuration = async (req, res) => {
 
 // console.log(maxSubArr([1,-2,3,4,5,7]))
 
+// function findNum(arr) {
+//     if (arr.length < 1) return null;
+//     let res = [];
+//     for (let i = 0; i < arr.length; i++) {
+//         if (arr[i] % 2 === 0) {
+//            res.push(arr[i])
+//         }
+//     }
+//     return res;
+// }
 
+// console.log(findNum([1,2,3,4,5,6,7]));
 
+// const arr = [1,2,3,4,5,6];
+// const res = arr.filter((item) => 
+//     arr[item] % 2 !== 0 )
 
+// console.log(res)
 
+// function isPrime(num) {
+//     if (num < 2) return false;
+//     if (num === 2) return true;   //  prime num
+//     if (num % 2 === 0) return false;   // all even no except 2 is not prime num
 
+//     for (let i = 3; i*i <= num; i = i+2) {
+//         if (num % i === 0) return false;
+//     }
+//     return true;
+// }
 
+// console.log(isPrime(11))
 
+// const arr = [1,2,2,3,4,2,3,4,5,6,3];
+// let resObj = {};
 
+// for (let i = 0; i < arr.length; i++) {
+//     const num = arr[i];
+//     if (resObj[num]) {
+//         resObj[num] = resObj[num] + 1; 
+//     } else {
+//         resObj[num] =  1;
+//     }
+// }
 
+// console.log(resObj)
 
+// const arr = [1,2,2,3,4,2,3,4,5,6,3];
+// const countMap = arr.reduce((acc, curr) => {
+//     acc[curr] = (acc[curr] || 0) + 1;
+//     return acc;
+// }, {});
 
+// console.log(countMap);
 
+// using Map with forEach 
+// const arr =  [1,2,2,3,4,2,3,4,5,6,3];
+// const countMap = new Map();
 
+// arr.forEach(num => {
+//     countMap.set(num, (countMap.get(num) || 0) + 1);
+// })
 
+const employees = [
+  { id: 1, name: "Alice", department: "HR", salary: 40000 },
+  { id: 2, name: "Bob", department: "Engineering", salary: 60000 },
+  { id: 3, name: "Charlie", department: "Engineering", salary: 70000 },
+  { id: 4, name: "David", department: "HR", salary: 45000 },
+  { id: 5, name: "Eve", department: "Finance", salary: 50000 }
+];
 
+// Iterate and do some calculation (e.g., total salary).
 
+// let totalSalary = 0;
+//  employees.forEach(emp => {
+//     totalSalary = totalSalary+emp.salary;
+//  })
+// console.log(totalSalary) 
 
+// Get employees only from Engineering department.
 
+// const engEmpList = employees.filter((emp) => 
+//     emp.department === "Engineering"
+// )
 
+// console.log(engEmpList) 
 
+// Get only employee names.
 
-
+const getNames = employees.map(emp => emp.name);
+console.log(getNames) 
 
 
 

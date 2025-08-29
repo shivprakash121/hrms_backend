@@ -344,13 +344,13 @@ const applyForRegularization = async (req, res) => {
         ],
       });
 
-      if (checkAttendance && checkAttendance.Duration <= 480) {
-        return res.status(400).json({
-          message: "Your work duration is less than 8 hours.",
-          statusCode: 400,
-          statusValue: "VALIDATION_ERROR",
-        });
-      }
+    //   if (checkAttendance && checkAttendance.Duration <= 480) {
+    //     return res.status(400).json({
+    //       message: "Your work duration is less than 8 hours.",
+    //       statusCode: 400,
+    //       statusValue: "VALIDATION_ERROR",
+    //     });
+    //   }
 
       if (checkMaxLimitReg.length >= 2) {
         return res.status(400).json({
@@ -391,7 +391,7 @@ const applyForRegularization = async (req, res) => {
     };
 
     const dateTime = getIndiaCurrentDateTime();
-
+    
     // check attendance for employee
     const checkAttendance = await AttendanceLogModel.findOne({
       $and: [
