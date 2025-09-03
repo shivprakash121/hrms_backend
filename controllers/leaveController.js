@@ -309,7 +309,7 @@ const applyForRegularization = async (req, res) => {
 
     const leaveDate = moment(leaveStartDate, "YYYY-MM-DD", true);
     const today = moment().endOf("day");
-    const past35Days = moment().subtract(35, "days").startOf("day");
+    const past35Days = moment().subtract(40, "days").startOf("day");
 
     if (!leaveDate.isBetween(past35Days, today, "day", "[]")) {
       return res.status(400).json({
@@ -682,113 +682,117 @@ const actionForVendorMeeting = async (req, res) => {
 }
 
 
-
 const requestCompOff = async (req, res) => {
     try {
         const { compOffDate, reason, totalDayss } = req.body;
-        // console.log(req.body)
+        const totalDaysStr = String(totalDayss).trim().toLowerCase();
 
-        // Validate required fields
-        if (!req.params.employeeId || !compOffDate || !reason) {
+        // Allowed values
+        const allowedValues = ["0.5", ".5", "1", "1.0", "half-day", "full-day"];
+
+        // Validate required fields & allowed values
+        if (!req.params.employeeId || !compOffDate || !reason || !allowedValues.includes(totalDaysStr)) {
             return res.status(400).json({
-                message: 'Employee ID, Comp Off Date, and Reason are required.',
+                message: `Employee ID, Comp Off Date, Reason are required, and Total Days must be one of: ${allowedValues.join(", ")}`,
                 statusCode: 400,
-                statusValue: 'error',
+                statusValue: "error",
             });
         }
-          
+
+        // Normalize value
+        let normalizedTotalDays;
+        if (["0.5", ".5", "half-day"].includes(totalDaysStr)) {
+            normalizedTotalDays = "0.5";
+        } else {
+            normalizedTotalDays = "1.0";
+        }
+        req.body.totalDayss = normalizedTotalDays;
+
+        // Validate token
         const token = req.headers.authorization?.split(" ")[1];
         if (!token) {
             return res.status(400).json({
                 statusCode: 400,
-                statusValue: "FAIL",
+                statusValue: "error",
                 message: "Token is required",
             });
         }
-        
-        // Decode the token to get employee details
+
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         if (!decoded) {
             return res.status(400).json({
                 statusCode: 400,
-                statusValue: "FAIL",
+                statusValue: "error",
                 message: "Invalid token",
             });
         }
 
-        // check already applied for the same date
+        // Check duplicate comp-off
         const existingCompOff = await CompOff.findOne({
             employeeId: req.params.employeeId,
             compOffDate: compOffDate,
-            totalDays: totalDayss
+            totalDays: normalizedTotalDays,
         });
 
         if (existingCompOff) {
             return res.status(400).json({
                 message: "Compensatory off already applied for the same date.",
                 statusCode: 400,
-                statusValue: "error"
+                statusValue: "error",
             });
         }
 
-        const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId })
-        if (!getUser || getUser.employmentType === "Contractual" || getUser.employmentType === "Contractual " || getUser.employmentType === " Contractual") {
+        // Validate employee type
+        const getUser = await employeeModel.findOne({ employeeId: decoded.employeeId });
+        if (!getUser || getUser.employmentType?.trim().toLowerCase() === "contractual") {
             return res.status(400).json({
-                message: "You can not able to apply comp-off request.",
+                message: "You cannot apply for a Comp-off request.",
                 statusCode: 400,
-                statusValue: "error"
+                statusValue: "error",
             });
         }
 
-        // Get current date and time in IST
+        // Get current IST datetime
         const getIndiaCurrentDateTime = () => {
             const indiaTime = new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
             const date = new Date(indiaTime);
-
             const pad = (n) => (n < 10 ? `0${n}` : n);
 
-            const year = date.getFullYear();
-            const month = pad(date.getMonth() + 1); // Months are 0-based
-            const day = pad(date.getDate());
-            const hours = pad(date.getHours());
-            const minutes = pad(date.getMinutes());
-            const seconds = pad(date.getSeconds());
-
-            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
         };
 
         const dateTime = getIndiaCurrentDateTime();
-        // Create a new Comp Off request
+
+        // Create comp-off request
         const compOffRequest = new CompOff({
             employeeId: req.params.employeeId,
             compOffDate,
             reason,
             approvedBy: getUser.managerId || "",
             appliedDate: dateTime,
-            totalDays: String(totalDayss), // ensures string even if accidentally sent as number
+            totalDays: normalizedTotalDays,
         });
 
-
-        // Save to the database
         const savedCompOff = await compOffRequest.save();
         if (!savedCompOff) {
             return res.status(400).json({
-                message: 'Compoff not generated.',
+                message: "Comp-off not generated.",
                 statusCode: 400,
-                statusValue: 'error',
+                statusValue: "error",
             });
         }
+
         return res.status(201).json({
-            message: 'Comp Off request created successfully.',
+            message: "Comp Off request created successfully.",
             statusCode: 201,
-            statusValue: 'success',
+            statusValue: "success",
             data: savedCompOff,
         });
     } catch (error) {
         res.status(500).json({
-            message: 'An error occurred while requesting Comp Off.',
+            message: "An error occurred while requesting Comp Off.",
             statusCode: 500,
-            statusValue: 'error',
+            statusValue: "error",
             error: error.message,
         });
     }
@@ -915,8 +919,6 @@ const actionCompOff = async (req, res) => {
                 ]
             );
         }
-
-
         if (!compOffRequest) {
             return res.status(400).json({
                 message: 'Compoff request not updated.',

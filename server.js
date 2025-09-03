@@ -1299,13 +1299,13 @@ const calculateAttendDuration = async (req, res) => {
 //     countMap.set(num, (countMap.get(num) || 0) + 1);
 // })
 
-const employees = [
-  { id: 1, name: "Alice", department: "HR", salary: 40000 },
-  { id: 2, name: "Bob", department: "Engineering", salary: 60000 },
-  { id: 3, name: "Charlie", department: "Engineering", salary: 70000 },
-  { id: 4, name: "David", department: "HR", salary: 45000 },
-  { id: 5, name: "Eve", department: "Finance", salary: 50000 }
-];
+// const employees = [
+//   { id: 1, name: "Alice", department: "HR", salary: 40000 },
+//   { id: 2, name: "Bob", department: "Engineering", salary: 60000 },
+//   { id: 3, name: "Charlie", department: "Engineering", salary: 70000 },
+//   { id: 4, name: "David", department: "HR", salary: 45000 },
+//   { id: 5, name: "Eve", department: "Finance", salary: 50000 }
+// ];
 
 // Iterate and do some calculation (e.g., total salary).
 
@@ -1325,8 +1325,75 @@ const employees = [
 
 // Get only employee names.
 
-const getNames = employees.map(emp => emp.name);
-console.log(getNames) 
+// const getNames = employees.map(emp => emp.name);
+// console.log(getNames) 
+
+// const users = [
+//   { name: "Shiv", active: true, id: 101 },
+//   { name: "Aman", active: false, id: 101 },
+//   { name: "Neha", active: true, id: 103 }
+// ];
+
+// // keep active users
+// const activeUsers = users.filter(user => {
+//     return user.active === true
+// })
+
+// console.log(activeUsers)
+
+// find methods
+// The .find() method in JavaScript is used to search through an array and return the first element that matches a given condition. 
+// If no match is found, it returns undefined.
+
+//1.  array.find(callback)
+
+// const users = [
+//   { name: "Shiv", active: true, id: 101 },
+//   { name: "Aman", active: false, id: 102 },
+//   { name: "Neha", active: true, id: 103 }
+// ];
+
+// Returns the first matching element
+// ✅ Use when you want one object, not an array.
+
+// Stops searching after the first match.
+
+// Even though Neha is also active, .find() stops at Shiv.
+
+
+// 2. .filter() → Returns all matching elements as an array
+// ✅ Use when you want multiple matches.
+
+// Returns a new array with all items that pass the condition
+
+// const result = users.filter((user) => {
+//     return user.active === true
+// })
+
+// console.log(result);
+// [
+//   { name: 'Shiv', active: true, id: 101 },
+//   { name: 'Neha', active: true, id: 103 }
+// ]
+
+
+// 3. .some() → Returns a boolean
+// ✅ Use when you just want to check if any match exists.
+
+// Returns true or false.
+
+// const res = users.some(user => user.active === false)
+// console.log(res)
+
+
+
+
+
+
+
+
+
+
 
 
 

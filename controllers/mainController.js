@@ -1364,8 +1364,8 @@ const getAttendanceLogsByEmployeeId = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 31;
     const offset = (page - 1) * limit;
-
-    console.log(page, limit)
+    
+    // console.log(page, limit)
     
     // Validate employeeId
     if (!employeeId) {
@@ -1523,6 +1523,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
       {
         $addFields: {
           shiftTime: { $arrayElemAt: ["$employeeInfo.shiftTime", 0] },
+          workingDays: { $arrayElemAt: ["$employeeInfo.workingDays", 0] },
         }
       },
       {
@@ -1535,6 +1536,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
           "InTime": 1,
           "OutTime": 1,
           "PunchRecords": 1,
+          "workingDays":1,
           // "EmployeeId":1
         },
       },
