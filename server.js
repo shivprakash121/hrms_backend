@@ -107,24 +107,24 @@ cron.schedule("0 0 * * *", async () => {
 
 // Cron job for getting 1 casualLeave and 3 maxRegularization 
 // Schedule a cron job to run at midnight on the first day of every month
-cron.schedule('0 0 1 * *', async () => {
-    console.log('Running cron job to reset casualLeave...');
+// cron.schedule('0 0 1 * *', async () => {
+//     console.log('Running cron job to reset casualLeave...');
 
-    try {
-        // Update all employees' casualLeave to 1
-        const result = await employeeModel.updateMany(
-            {},
-            { $set: { 
-                'leaveBalance.casualLeave': '1',
-                'maxRegularization': '3'
-            } }
-        );
+//     try {
+//         // Update all employees' casualLeave to 1
+//         const result = await employeeModel.updateMany(
+//             {},
+//             { $set: { 
+//                 'leaveBalance.casualLeave': '1',
+//                 'maxRegularization': '3'
+//             } }
+//         );
 
-        console.log(`Successfully updated casualLeave for ${result.nModified} employees.`);
-    } catch (error) {
-        console.error('Error updating casualLeave:', error);
-    }
-});
+//         console.log(`Successfully updated casualLeave for ${result.nModified} employees.`);
+//     } catch (error) {
+//         console.error('Error updating casualLeave:', error);
+//     }
+// });
 
 // Cron job for auto credited medicalLeave in jan by 6
 // Cron job for January 1st at midnight
@@ -196,14 +196,6 @@ cron.schedule('30 0 1 1,4,7,10 *', async () => {
         console.error('Error crediting earned leaves:', error);
     }
 });
-
-
-
-
-
-
-
-
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

@@ -2,6 +2,7 @@ const cron = require("node-cron");
 const { connectToDB } = require("../config/dbConfig");
 const AttendanceLogModel = require("../models/attendanceLogModel");
 const moment = require('moment-timezone');
+const employeeModel = require("../models/employeeModel");
 
 const fetchAndSyncAttendanceLogs = async () => {
   try {
@@ -146,7 +147,13 @@ const startAttendanceLogSyncCronJobOnce = () => {
   });
 };
 
-//  
+// const employeesToEnsure = [
+//   { EmployeeName: "Sumit Singh", EmployeeCode: "CON006", EmployeeId: 2564 },
+//   { EmployeeName: "Nikhil Kumar", EmployeeCode: "CON020", EmployeeId: 2751 },
+//   { EmployeeName: "Sanuj Kumar", EmployeeCode: "CON005", EmployeeId: 2717 },
+//   { EmployeeName: "Sumit Bisht", EmployeeCode: "CON004", EmployeeId: 2716 },
+// ];
+
 const fetchAndSyncAttendanceLogsLast5days = async (req, res) => {
   try {
     const { currentDate, previousDate } = req.body;
@@ -163,6 +170,11 @@ const fetchAndSyncAttendanceLogsLast5days = async (req, res) => {
     console.log("Date Range:", { currentDate, previousDate });
     // Connect to the database
     const pool = await connectToDB();
+
+    await AttendanceLogModel.updateMany({EmployeeId:2564},{$set:{EmployeeCode:"CON006"}})
+    await AttendanceLogModel.updateMany({EmployeeId:2751},{$set:{EmployeeCode:"CON020"}})
+    await AttendanceLogModel.updateMany({EmployeeId:2717},{$set:{EmployeeCode:"CON005"}})
+    await AttendanceLogModel.updateMany({EmployeeId:2716},{$set:{EmployeeCode:"CON004"}}) 
 
     // SQL query to fetch data within the date range
     const query = `
@@ -211,6 +223,10 @@ const fetchAndSyncAttendanceLogsLast5days = async (req, res) => {
         }
       });
       await Promise.all(updatePromises);
+      // await AttendanceLogModel.updateMany({EmployeeId:2564},{$set:{EmployeeCode:"2564"}})
+      // await AttendanceLogModel.updateMany({EmployeeId:2751},{$set:{EmployeeCode:"2751"}})
+      // await AttendanceLogModel.updateMany({EmployeeId:2717},{$set:{EmployeeCode:"2717"}})
+      // await AttendanceLogModel.updateMany({EmployeeId:2716},{$set:{EmployeeCode:"2716"}})
       console.log("Attendance logs synced to MongoDB.");
       // Send success response
       return res.status(200).json({

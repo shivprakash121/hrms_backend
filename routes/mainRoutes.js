@@ -26,12 +26,7 @@ router.get('/attendance-logs', getAllAttendanceLogs);
 router.get('/attendance-logs/:employeeId', getAttendanceLogsByEmployeeId); // used
 
 router.post('/calculate-attendance-logs', attendanceCronJob.fetchAndSyncAttendanceLogsLast5days);
-
-
-
 router.get('/holidays-list', getHolidayList);
-
-
 
 
 router.get('/punchTime',getPunchTimeDetails);  // temp-used
