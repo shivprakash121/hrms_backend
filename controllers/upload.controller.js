@@ -31,7 +31,12 @@ exports.uploadMedicalReport = async (req, res) => {
 exports.uploadSelfieForAttendance = async (req, res) => {
     // req.file contains a file object  
     res.json(req.file);
-}    
+}
+
+exports.uploadEmpDocFile = async (req, res) => {
+    // req.file contains a file object  
+    res.json(req.file);
+}
 
 
 

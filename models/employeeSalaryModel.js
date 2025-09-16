@@ -49,8 +49,10 @@ const employeeSalarySchema = new mongoose.Schema({
     penalty: { type: String, default: "0" },
     transport_or_others: { type: String, default: "0" },
     total_deduction: { type: String, default: "0" },
-    net_pay: { type: String, default: "0" }
+    net_pay: { type: String, default: "0" },
+    fixed_gross_salary: {type: String, default: "0"},
   },
+
 },{timestamps:true});
 
 const EmployeeSalary = mongoose.model("employee_salaries", employeeSalarySchema);

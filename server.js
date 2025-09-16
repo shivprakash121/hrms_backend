@@ -137,6 +137,7 @@ const AttendanceLogModel = require("./models/attendanceLogModel.js");
 const leaveTakenHistoryModel = require("./models/leaveTakenHistoryModel.js");
 const AttendanceLogForOutDuty = require("./models/attendanceLogModelForOutDuty.js");
 const holidaysModel = require("./models/holidayModel.js");
+const trackolapAttendanceModel = require("./models/trackolapAttendanceModel.js");
 
 // Backup dir
 const BACKUP_DIR = path.join(__dirname, "db_backup");
@@ -198,7 +199,7 @@ cron.schedule("50 17 * * *", async () => {
     console.log("Daily JSON backup completed.");
 
     // Run cleanup after backup
-    deleteOldBackups();
+    // deleteOldBackups();
 });
 
 const backupAllCollections = async () => {
@@ -212,7 +213,7 @@ const backupAllCollections = async () => {
     console.log("Daily JSON backup completed.");
 
     // Run cleanup after backup
-    deleteOldBackups();
+    // deleteOldBackups();
 };
 
 // Call this function whenever you want to backup
@@ -707,29 +708,29 @@ cron.schedule("*/15 * * * *", async () => {
     console.log("Running EmployeeCode update job...");
 
     try {
-        const updateOperations = [
-            { EmployeeId: 2564, EmployeeCode: "2564" },
-            { EmployeeId: 2751, EmployeeCode: "2751" },
-            { EmployeeId: 2717, EmployeeCode: "2717" },
-            { EmployeeId: 2716, EmployeeCode: "2716" },
+        // const updateOperations = [
+        //     { EmployeeId: 2564, EmployeeCode: "2564" },
+        //     { EmployeeId: 2751, EmployeeCode: "2751" },
+        //     { EmployeeId: 2717, EmployeeCode: "2717" },
+        //     { EmployeeId: 2716, EmployeeCode: "2716" },
 
-            { EmployeeId: 2881, EmployeeCode: "2881" },
-            { EmployeeId: 2878, EmployeeCode: "2878" },
-            { EmployeeId: 2821, EmployeeCode: "2821" },
-            { EmployeeId: 2822, EmployeeCode: "2822" },
-            { EmployeeId: 2823, EmployeeCode: "2823" },
-        ];
+        //     { EmployeeId: 2881, EmployeeCode: "2881" },
+        //     { EmployeeId: 2878, EmployeeCode: "2878" },
+        //     { EmployeeId: 2821, EmployeeCode: "2821" },
+        //     { EmployeeId: 2822, EmployeeCode: "2822" },
+        //     { EmployeeId: 2823, EmployeeCode: "2823" },
+        // ];
 
-        await AttendanceLogModel.updateMany({EmployeeId:2564},{$set:{EmployeeCode:"2564"}})
-        await AttendanceLogModel.updateMany({EmployeeId:2751},{$set:{EmployeeCode:"2751"}})
-        await AttendanceLogModel.updateMany({EmployeeId:2717},{$set:{EmployeeCode:"2717"}})
-        await AttendanceLogModel.updateMany({EmployeeId:2716},{$set:{EmployeeCode:"2716"}})
+        // await AttendanceLogModel.updateMany({EmployeeId:2564},{$set:{EmployeeCode:"2564"}})
+        // await AttendanceLogModel.updateMany({EmployeeId:2751},{$set:{EmployeeCode:"2751"}})
+        // await AttendanceLogModel.updateMany({EmployeeId:2717},{$set:{EmployeeCode:"2717"}})
+        // await AttendanceLogModel.updateMany({EmployeeId:2716},{$set:{EmployeeCode:"2716"}})
 
-        await AttendanceLogModel.updateMany({EmployeeId:2881},{$set:{EmployeeCode:"2881"}})
-        await AttendanceLogModel.updateMany({EmployeeId:2878},{$set:{EmployeeCode:"2878"}})
-        await AttendanceLogModel.updateMany({EmployeeId:2821},{$set:{EmployeeCode:"2821"}})
-        await AttendanceLogModel.updateMany({EmployeeId:2822},{$set:{EmployeeCode:"2822"}})
-        await AttendanceLogModel.updateMany({EmployeeId:2823},{$set:{EmployeeCode:"2823"}})
+        // await AttendanceLogModel.updateMany({EmployeeId:2881},{$set:{EmployeeCode:"2881"}})
+        // await AttendanceLogModel.updateMany({EmployeeId:2878},{$set:{EmployeeCode:"2878"}})
+        // await AttendanceLogModel.updateMany({EmployeeId:2821},{$set:{EmployeeCode:"2821"}})
+        // await AttendanceLogModel.updateMany({EmployeeId:2822},{$set:{EmployeeCode:"2822"}})
+        // await AttendanceLogModel.updateMany({EmployeeId:2823},{$set:{EmployeeCode:"2823"}})
 
     } catch (error) {
         console.error("Error in EmployeeCode update job:", error);
@@ -962,90 +963,107 @@ cron.schedule("*/30 * * * *", async () => {
     }
 });
 
+cron.schedule("*/3 * * * *", async () => {
+  console.log("Checking mamagerId of each employee job...");
 
-const mergeAttendance = async () => {
   try {
-    const todayIST = moment().tz("Asia/Kolkata").startOf("day");
-    const todayEndUTC = todayIST.clone().endOf("day").subtract(5, "hours").subtract(30, "minutes").toDate();
-    const twoDaysAgoStartUTC = todayIST.clone().subtract(3, "days").subtract(5, "hours").subtract(30, "minutes").toDate();
-
-    const punchInAttendanceLogs = await AttendanceLogForOutDuty.find(
+    const result = await employeeModel.updateMany(
       {
-        AttendanceDate: { $gte: twoDaysAgoStartUTC, $lt: todayEndUTC }
+        $or: [{ managerId: "false" }, { managerId: "" }]
       },
-      {
-        employeeId: 1,
-        AttendanceDate: 1,
-        InTime: 1,
-        OutTime: 1,
-        PunchRecords: 1
-      }
+      { $set: { managerId: "900" } }
     );
 
-    for (const punchLog of punchInAttendanceLogs) {
-      const { employeeId, AttendanceDate, InTime, OutTime, PunchRecords } = punchLog;
-
-      const existingMainLog = await AttendanceLogModel.findOne({
-        EmployeeCode: employeeId.toString(),
-        $expr: {
-          $and: [
-            { $eq: [{ $dayOfMonth: "$AttendanceDate" }, AttendanceDate.getUTCDate()] },
-            { $eq: [{ $month: "$AttendanceDate" }, AttendanceDate.getUTCMonth() + 1] },
-            { $eq: [{ $year: "$AttendanceDate" }, AttendanceDate.getUTCFullYear()] }
-          ]
-        }
-      });
-
-      if (!existingMainLog) {
-        console.warn(`No match for EmployeeCode ${employeeId} on ${AttendanceDate.toISOString().split("T")[0]}`);
-        continue;
-      }
-
-      // Merge PunchRecords with duplicates preserved and sorted
-      const combinedPunches = [
-        ...(existingMainLog.PunchRecords || "").split(","),
-        ...(PunchRecords || "").split(",")
-      ]
-        .filter(p => p && p.includes(":")) // remove empty entries
-        .sort((a, b) => {
-          const [h1, m1] = a.split(":");
-          const [h2, m2] = b.split(":");
-          return (h1 + m1).localeCompare(h2 + m2);
-        });
-
-      const mergedPunchRecords = combinedPunches.join(",") + (combinedPunches.length ? "," : "");
-
-      // Merge InTime and OutTime
-      const mergedInTime = moment.min(
-        moment(existingMainLog.InTime, "YYYY-MM-DD HH:mm:ss"),
-        moment(InTime, "YYYY-MM-DD HH:mm:ss")
-      ).format("YYYY-MM-DD HH:mm:ss");
-
-      const mergedOutTime = moment.max(
-        moment(existingMainLog.OutTime, "YYYY-MM-DD HH:mm:ss"),
-        moment(OutTime, "YYYY-MM-DD HH:mm:ss")
-      ).format("YYYY-MM-DD HH:mm:ss");
-
-      // Update main attendance log
-      await AttendanceLogModel.findByIdAndUpdate(
-        existingMainLog._id,
-        {
-          $set: {
-            PunchRecords: mergedPunchRecords,
-            InTime: mergedInTime,
-            OutTime: mergedOutTime,
-            Status: "Present"
-          }
-        },
-        { new: true }
-      );
-    }
-
-    console.log("Attendance logs merged successfully");
+    console.log(` ManagerId updated for ${result.modifiedCount} employees`);
   } catch (error) {
-    console.error(" Error updating attendance logs:", error);
+    console.error(" Error job:", error);
   }
-};
+});
+
+
+// const mergeAttendance = async () => {
+//   try {
+//     const todayIST = moment().tz("Asia/Kolkata").startOf("day");
+//     const todayEndUTC = todayIST.clone().endOf("day").subtract(5, "hours").subtract(30, "minutes").toDate();
+//     const twoDaysAgoStartUTC = todayIST.clone().subtract(3, "days").subtract(5, "hours").subtract(30, "minutes").toDate();
+
+//     const punchInAttendanceLogs = await AttendanceLogForOutDuty.find(
+//       {
+//         AttendanceDate: { $gte: twoDaysAgoStartUTC, $lt: todayEndUTC }
+//       },
+//       {
+//         employeeId: 1,
+//         AttendanceDate: 1,
+//         InTime: 1,
+//         OutTime: 1,
+//         PunchRecords: 1
+//       }
+//     );
+
+//     for (const punchLog of punchInAttendanceLogs) {
+//       const { employeeId, AttendanceDate, InTime, OutTime, PunchRecords } = punchLog;
+
+//       const existingMainLog = await AttendanceLogModel.findOne({
+//         EmployeeCode: employeeId.toString(),
+//         $expr: {
+//           $and: [
+//             { $eq: [{ $dayOfMonth: "$AttendanceDate" }, AttendanceDate.getUTCDate()] },
+//             { $eq: [{ $month: "$AttendanceDate" }, AttendanceDate.getUTCMonth() + 1] },
+//             { $eq: [{ $year: "$AttendanceDate" }, AttendanceDate.getUTCFullYear()] }
+//           ]
+//         }
+//       });
+
+//       if (!existingMainLog) {
+//         console.warn(`No match for EmployeeCode ${employeeId} on ${AttendanceDate.toISOString().split("T")[0]}`);
+//         continue;
+//       }
+
+//       // Merge PunchRecords with duplicates preserved and sorted
+//       const combinedPunches = [
+//         ...(existingMainLog.PunchRecords || "").split(","),
+//         ...(PunchRecords || "").split(",")
+//       ]
+//         .filter(p => p && p.includes(":")) // remove empty entries
+//         .sort((a, b) => {
+//           const [h1, m1] = a.split(":");
+//           const [h2, m2] = b.split(":");
+//           return (h1 + m1).localeCompare(h2 + m2);
+//         });
+
+//       const mergedPunchRecords = combinedPunches.join(",") + (combinedPunches.length ? "," : "");
+
+//       // Merge InTime and OutTime
+//       const mergedInTime = moment.min(
+//         moment(existingMainLog.InTime, "YYYY-MM-DD HH:mm:ss"),
+//         moment(InTime, "YYYY-MM-DD HH:mm:ss")
+//       ).format("YYYY-MM-DD HH:mm:ss");
+
+//       const mergedOutTime = moment.max(
+//         moment(existingMainLog.OutTime, "YYYY-MM-DD HH:mm:ss"),
+//         moment(OutTime, "YYYY-MM-DD HH:mm:ss")
+//       ).format("YYYY-MM-DD HH:mm:ss");
+
+//       // Update main attendance log
+//       await AttendanceLogModel.findByIdAndUpdate(
+//         existingMainLog._id,
+//         {
+//           $set: {
+//             PunchRecords: mergedPunchRecords,
+//             InTime: mergedInTime,
+//             OutTime: mergedOutTime,
+//             Status: "Present"
+//           }
+//         },
+//         { new: true }
+//       );
+//     }
+
+//     console.log("Attendance logs merged successfully");
+//   } catch (error) {
+//     console.error(" Error updating attendance logs:", error);
+//   }
+// };
 
 
 // Schedule cron job to run every 30 minutes
@@ -1133,279 +1151,207 @@ const calculateAttendDuration = async (req, res) => {
   }
 };
 
-// calculateAttendDuration();
+
+const normalizeEmployeeCodes = async () => {
+  try {
+    const employees = await AttendanceLogModel.find({
+      EmployeeCode: { $regex: /^(CON|GD)\d+/ }
+    });
+
+    for (const emp of employees) {
+      let newCode = emp.EmployeeCode;
+
+      if (emp.EmployeeCode.startsWith("CON")) {
+        const numericPart = emp.EmployeeCode.replace("CON", "");
+        newCode = `5${numericPart}`;
+      } else if (emp.EmployeeCode.startsWith("GD")) {
+        const numericPart = emp.EmployeeCode.replace("GD", "");
+        newCode = `8${numericPart}`;
+      }
+
+      // Update all matching docs
+      await AttendanceLogModel.updateMany(
+        { EmployeeCode: emp.EmployeeCode },
+        { $set: { EmployeeCode: newCode } }
+      );
+    }
+
+  } catch (error) {
+    console.error("Error calculating duration:", error);
+  }
+};
+
 
 // Schedule cron job to run every 30 minutes
-// cron.schedule("*/30 * * * *", () => {
-//   console.log("Running Work Duration job at", new Date().toISOString());
-//   calculateAttendDuration();
+cron.schedule("*/30 * * * *", () => {
+  console.log("EmployeeCode values updated successfully");
+  normalizeEmployeeCodes();
+});
+
+const normalizeLeaveHistoryEmployeeIds = async () => {
+  try {
+    // Find docs where employeeId starts with "CON"
+    const leaves = await leaveTakenHistoryModel.find({
+      employeeId: { $regex: /^CON\d+/ }
+    });
+
+    for (const leave of leaves) {
+      const numericPart = leave.employeeId.replace("CON", "");
+      const newId = `5${numericPart}`;
+
+      await leaveTakenHistoryModel.updateMany(
+        { employeeId: leave.employeeId },
+        { $set: { employeeId: newId } }
+      );
+    }
+
+    // console.log("employeeId values normalized successfully in leaveTakenHistoryModel.");
+
+  } catch (error) {
+    console.error("Error normalizing leaveTakenHistoryModel employeeIds:", error);
+  }
+};
+
+// Run it once
+// normalizeLeaveHistoryEmployeeIds();
+// Schedule cron job to run every 30 minutes
+cron.schedule("*/30 * * * *", () => {
+  console.log("EemployeeId values normalized successfully in leaveTakenHistoryModel.");
+  normalizeLeaveHistoryEmployeeIds();
+});
+
+
+
+// Normalize employee IDs across multiple collections
+async function normalizeEmployeeIds() {
+  try {
+    const collections = [
+      { model: employeeModel, name: "Employee" },
+      { model: leaveTakenHistoryModel, name: "LeaveTakenHistory" },
+      { model: trackolapAttendanceModel, name: "TrackolapAttendance" },
+      { model: CompOff, name: "CompOff" },
+      { model: AttendanceLogForOutDuty, name: "AttendanceLogOutDuty" }
+    ];
+
+    for (const { model, name } of collections) {
+      // Only fetch employeeId field to avoid touching others
+      const records = await model.find(
+        { employeeId: { $regex: /^(CON|GD)\d+$/ } },
+        { employeeId: 1 } // projection
+      );
+
+      if (!records.length) {
+        console.log(`[Normalize] ${name}: No records found.`);
+        continue;
+      }
+
+      const bulkOps = records
+        .map((rec) => {
+          let newCode = rec.employeeId;
+
+          if (rec.employeeId.startsWith("CON")) {
+            newCode = `5${rec.employeeId.slice(3)}`;
+          } else if (rec.employeeId.startsWith("GD")) {
+            newCode = `8${rec.employeeId.slice(2)}`;
+          }
+
+          // Skip if already normalized
+          if (newCode === rec.employeeId) return null;
+
+          return {
+            updateOne: {
+              filter: { employeeId: rec.employeeId },
+              update: { $set: { employeeId: newCode } }
+            }
+          };
+        })
+        .filter(Boolean);
+
+      if (!bulkOps.length) {
+        console.log(`[Normalize] ${name}: All IDs already normalized.`);
+        continue;
+      }
+
+      const result = await model.bulkWrite(bulkOps, { ordered: false });
+      console.log(`[Normalize] ${name}: ${result.modifiedCount} IDs updated.`);
+    }
+  } catch (error) {
+    console.error("[Normalize] Error normalizing employee IDs:", error);
+    throw error;
+  }
+}
+
+
+// Schedule cron job to run every 30 minutes (configurable)
+const CRON_EXPR = process.env.NORMALIZE_CRON || "15 23 * * *";
+
+cron.schedule(CRON_EXPR, async () => {
+  console.log("[Cron] Running employeeId normalization job...");
+  try {
+    await normalizeEmployeeIds();
+    console.log("[Cron] EmployeeCode values updated successfully");
+  } catch (error) {
+    console.error("[Cron] Error running normalization job ", error);
+  }
+});
+
+
+const findEmployeesWith50xxAnd80xx = async () => {
+  try {
+    const employees = await employeeModel.find({
+      employeeId: {
+        $regex: /^(50|80)\d{2}$/, // starts with 50 or 80 and exactly 4 digits total
+      },
+    });
+
+    if (employees.length === 0) {
+      console.log("No employees found with employeeId starting 50xx or 80xx");
+    } else {
+      console.log("Employees with employeeId 50xx or 80xx (4 digits only):");
+      console.table(
+        employees.map(e => ({
+          employeeId: e.employeeId,
+          employeeName: e.employeeName,
+          departmentId: e.departmentId,
+          designation: e.designation,
+        }))
+      );
+    }
+
+    return employees;
+  } catch (error) {
+    console.error("Error finding employees:", error);
+    throw error;
+  }
+};
+
+// findEmployeesWith50xxAnd80xx()
+
+
+// cron.schedule("*/10 * * * *", async () => {
+//   console.log("[Cron] Running mergeAttendance job...");
+//   try {
+//     await mergeAttendance();
+//     console.log("[Cron] mergeAttendance job completed.");
+//   } catch (err) {
+//     console.error("[Cron] Error in mergeAttendance job:", err);
+//   }
 // });
 
-///////////////////
 
-// const fernet = require("fernet");
-
-// // This is your base64 encoded key
-// const secret = new fernet.Secret("wN0GuJbTOWJNa7xyN0TTNIz7tuMFMtP_fiMPhz9Sehg=");
-
-// const token = new fernet.Token({
-//   secret: secret,
-//   token: "gAAAAABoXR15sk3-jhcJB3eYIQGKYIIb_OOMnSlu_RqoJD-s7aPpCsWq2Luq1PRK0M10PJsI_QGqWrdf5o_CaM3lX8wRyvFqTg==",
-//   ttl: 0 // 0 means no expiry
-// });
-
-// try {
-//   const decoded = token.decode();
-//   console.log("Decrypted----:", decoded);
-// } catch (e) {
-//   console.error("Decryption failed:", e.message);
-// }
-
-// function  removeDuuplicateElem(arr) {
-//     return arr.filter((item, index) => arr.indexOf(item) === index);
-// }
-
-// console.log(removeDuuplicateElem([2,3,4,5,6,2,3,4,5,6]))
-
-// function removeDuuplicateElem(arr) {
-//     return arr.reduce((resArr, item) => {
-//         if(!resArr.includes(item)) {
-//             resArr.push(item);
-//         }
-//         return resArr;
-//     }, [])
-// }
-
-// console.log(removeDuuplicateElem([2,3,4,5,6,2,3,4,5,6]))
-
-// function removeDuuplicateElem(arr) {
-//     let resArr = [];
-
-//     for (let i = 0; i < arr.length; i++) {
-//         let isDuplicate = false;
-
-//         for (let j = 0; j < resArr.length; j++) {
-//             if (arr[i] === resArr[j]) {
-//                 isDuplicate = true;
-//                 break;
-//             }
-//         }
-//         if (isDuplicate === false) {
-//             resArr.push(arr[i]);
-//         }
-//     }
-//     return resArr;
-// }
-
-// console.log(removeDuuplicateElem([2,3,4,5,6,2,3,4,5,6]))
-
-
-// function flattenArray(arr, depth) {
-//     let result = [];
-
-//     for (let i = 0; i < arr.length; i++) {
-//         if (Array.isArray(arr[i] && depth > 0)) {
-//             result = result.concat(flattenArray(arr[i], depth-1));  // recursively call it
-//         } else {
-//             result.push(arr[i]);
-//         }
-//     }
-//     return result;
-// }
-
-
-// console.log(flattenArray([1,[2,3],[4,[5,[6]]]], 2))
-
-
-// function maxSubArr(arr) {
-//    let maxSofor = arr[0]  // by default 0 index val
-//    let currMax = arr[0]   // by default 0 index val
-
-//    for (let i = 0; i < arr.length; i++) {
-//     if (currMax + arr[i] > arr[i]) {
-//         currMax = currMax + arr[i];
-//     } else {
-//         currMax = arr[i];
-//     }
-
-//     if (currMax > maxSofor) {
-//         maxSofor = currMax;
-//     }
-//    }
-//    return maxSofor;
-// }
-
-// console.log(maxSubArr([1,-2,3,4,5,7]))
-
-// function findNum(arr) {
-//     if (arr.length < 1) return null;
-//     let res = [];
-//     for (let i = 0; i < arr.length; i++) {
-//         if (arr[i] % 2 === 0) {
-//            res.push(arr[i])
-//         }
-//     }
-//     return res;
-// }
-
-// console.log(findNum([1,2,3,4,5,6,7]));
-
-// const arr = [1,2,3,4,5,6];
-// const res = arr.filter((item) => 
-//     arr[item] % 2 !== 0 )
-
-// console.log(res)
-
-// function isPrime(num) {
-//     if (num < 2) return false;
-//     if (num === 2) return true;   //  prime num
-//     if (num % 2 === 0) return false;   // all even no except 2 is not prime num
-
-//     for (let i = 3; i*i <= num; i = i+2) {
-//         if (num % i === 0) return false;
-//     }
-//     return true;
-// }
-
-// console.log(isPrime(11))
-
-// const arr = [1,2,2,3,4,2,3,4,5,6,3];
-// let resObj = {};
-
-// for (let i = 0; i < arr.length; i++) {
-//     const num = arr[i];
-//     if (resObj[num]) {
-//         resObj[num] = resObj[num] + 1; 
-//     } else {
-//         resObj[num] =  1;
-//     }
-// }
-
-// console.log(resObj)
-
-// const arr = [1,2,2,3,4,2,3,4,5,6,3];
-// const countMap = arr.reduce((acc, curr) => {
-//     acc[curr] = (acc[curr] || 0) + 1;
-//     return acc;
-// }, {});
-
-// console.log(countMap);
-
-// using Map with forEach 
-// const arr =  [1,2,2,3,4,2,3,4,5,6,3];
-// const countMap = new Map();
-
-// arr.forEach(num => {
-//     countMap.set(num, (countMap.get(num) || 0) + 1);
-// })
-
-// const employees = [
-//   { id: 1, name: "Alice", department: "HR", salary: 40000 },
-//   { id: 2, name: "Bob", department: "Engineering", salary: 60000 },
-//   { id: 3, name: "Charlie", department: "Engineering", salary: 70000 },
-//   { id: 4, name: "David", department: "HR", salary: 45000 },
-//   { id: 5, name: "Eve", department: "Finance", salary: 50000 }
-// ];
-
-// Iterate and do some calculation (e.g., total salary).
-
-// let totalSalary = 0;
-//  employees.forEach(emp => {
-//     totalSalary = totalSalary+emp.salary;
-//  })
-// console.log(totalSalary) 
-
-// Get employees only from Engineering department.
-
-// const engEmpList = employees.filter((emp) => 
-//     emp.department === "Engineering"
-// )
-
-// console.log(engEmpList) 
-
-// Get only employee names.
-
-// const getNames = employees.map(emp => emp.name);
-// console.log(getNames) 
-
-// const users = [
-//   { name: "Shiv", active: true, id: 101 },
-//   { name: "Aman", active: false, id: 101 },
-//   { name: "Neha", active: true, id: 103 }
-// ];
-
-// // keep active users
-// const activeUsers = users.filter(user => {
-//     return user.active === true
-// })
-
-// console.log(activeUsers)
-
-// find methods
-// The .find() method in JavaScript is used to search through an array and return the first element that matches a given condition. 
-// If no match is found, it returns undefined.
-
-//1.  array.find(callback)
-
-// const users = [
-//   { name: "Shiv", active: true, id: 101 },
-//   { name: "Aman", active: false, id: 102 },
-//   { name: "Neha", active: true, id: 103 }
-// ];
-
-// Returns the first matching element
-// ✅ Use when you want one object, not an array.
-
-// Stops searching after the first match.
-
-// Even though Neha is also active, .find() stops at Shiv.
-
-
-// 2. .filter() → Returns all matching elements as an array
-// ✅ Use when you want multiple matches.
-
-// Returns a new array with all items that pass the condition
-
-// const result = users.filter((user) => {
-//     return user.active === true
-// })
-
-// console.log(result);
-// [
-//   { name: 'Shiv', active: true, id: 101 },
-//   { name: 'Neha', active: true, id: 103 }
-// ]
-
-
-// 3. .some() → Returns a boolean
-// ✅ Use when you just want to check if any match exists.
-
-// Returns true or false.
-
-// const res = users.some(user => user.active === false)
-// console.log(res)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+// index.js (or runMerge.js)
+// const { mergeAttendance } = require("./utils/attendanceMerger");
+const { mergeAttendanceForAll } = require("./utils/attendanceMerger");
+
+(async () => {
+  try {
+    console.log("[Manual] Running mergeAttendanceForAll...");
+    const results = await mergeAttendanceForAll();
+    console.log("✅ Final merged count:", results.length);
+  } catch (err) {
+    console.error("Error:", err);
+  }
+})();
 
 
 

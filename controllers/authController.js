@@ -56,7 +56,7 @@ const registerEmployee = async (req, res) => {
             pancardNo,
             workingDays
         } = req.body;
-        console.log(1111, req.body)
+        // console.log(1111, req.body)
         if ((!email || email == "" || email == null) && (!employeeId || employeeId == "" || employeeId == null)) {
             return res.status(400).json({
                 statusCode: 400,
@@ -440,22 +440,22 @@ const getAllEmployeeList = async (req, res) => {
         const totalCount = await employeeModel.countDocuments();
 
         if (totalCount === 0) {
-            return res.status(404).json({
+            return res.status(404).json({ 
                 statusCode: 404,
                 statusValue: "FAIL",
                 message: "No employees found.",
             });
         }
-
+        
         // Calculate total pages
         const totalPages = Math.ceil(totalCount / limitNumber);
-
+        
         // Retrieve paginated employee records
         const employees = await employeeModel
             .find({accountStatus:"Active"})
             .skip((pageNumber - 1) * limitNumber)
             .limit(limitNumber);
-
+ 
         // Success response
         return res.status(200).json({
             statusCode: 200,
@@ -484,15 +484,31 @@ const getAllEmployeeList = async (req, res) => {
 const getEmpDetailsById = async (req, res) => {
     try {
         const { employeeId } = req.params;
+
         if (!employeeId) {
-            return res.status(404).json({
-                statusCode: 404,
-                statusValue: "FAIL",
-                message: "No employees found.",
-            });
+        return res.status(404).json({
+            statusCode: 404,
+            statusValue: "FAIL",
+            message: "No employees found.",
+        });
         }
-        
-        const employeeDoc = await employeeModel.findOne({ employeeId: Number(employeeId) }, { __v: 0 })
+
+        let searchId = employeeId;
+
+        // If starts with "CON" or "con", strip prefix
+        if (/^con/i.test(employeeId)) {
+        searchId = employeeId.replace(/^con/i, ""); // remove 'CON' prefix
+        }
+
+        // Build search condition for either employeeId or employeeCode
+        const query = {
+        $or: [
+            { employeeId: String(searchId) },
+            { employeeCode: String(searchId) }
+        ]
+        };
+
+        const employeeDoc = await employeeModel.findOne(query, { __v: 0 });
         if (employeeDoc) {
             const compOffData = await CompOff.find({employeeId:req.params.employeeId, status:"Approved"})
             const compOffSum = compOffData.reduce((acc, curr) => {
@@ -773,6 +789,7 @@ const resetForgetPassword = async (req, res) => {
         });
     }
 };
+
 
 
 const updateEmpSalaryDetailsById = async (req, res) => {

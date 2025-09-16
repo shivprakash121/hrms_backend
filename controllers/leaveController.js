@@ -772,7 +772,7 @@ const requestCompOff = async (req, res) => {
             appliedDate: dateTime,
             totalDays: normalizedTotalDays,
         });
-
+        
         const savedCompOff = await compOffRequest.save();
         if (!savedCompOff) {
             return res.status(400).json({

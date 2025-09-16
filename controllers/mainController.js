@@ -1487,10 +1487,10 @@ const getAttendanceDaysByMonth = async (req, res) => {
     let employeeId = req.params.employeeId;
     // Define the mapping
     const employeeIdMapping = {
-      "27166": "CON004",
-      "27516": "CON020",
-      "25646": "CON006",
-      "27176": "CON005"
+      // "27166": "CON004",
+      // "27516": "CON020",
+      // "25646": "CON006",
+      // "27176": "CON005"
     };
 
     // Check if employeeId exists in the mapping and override it
@@ -1501,7 +1501,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
     const yearMonth = req.query.yearMonth;
     const startOfMonth = new Date(`${yearMonth}-01T00:00:00.000Z`);
     const endOfMonth = new Date(new Date(startOfMonth).setMonth(startOfMonth.getMonth() + 1));
-
+        
     const aggResult = await AttendanceLogModel.aggregate([
       {
         $match: {
@@ -1541,7 +1541,7 @@ const getAttendanceDaysByMonth = async (req, res) => {
         },
       },
     ]);
-
+    
     const convertDuration = (durationInMinutes) => {
       const hours = Math.floor(durationInMinutes / 60);
       const minutes = durationInMinutes % 60;
@@ -2252,7 +2252,8 @@ const createEmployeeSalary = async (req, res) => {
         penalty,
         transport_or_others,
         total_deduction,
-        net_pay
+        net_pay,
+        fixed_gross_salary,
       } = {},
     } = req.body;
     console.log(req.body)
