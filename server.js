@@ -134,7 +134,7 @@ const employeeModel = require("./models/employeeModel");
 const CompOff = require("./models/compOffHistoryModel.js");
 const moment = require("moment");
 const AttendanceLogModel = require("./models/attendanceLogModel.js");
-const leaveTakenHistoryModel = require("./models/leaveTakenHistoryModel.js");
+// const leaveTakenHistoryModel = require("./models/leaveTakenHistoryModel.js");
 const AttendanceLogForOutDuty = require("./models/attendanceLogModelForOutDuty.js");
 const holidaysModel = require("./models/holidayModel.js");
 const trackolapAttendanceModel = require("./models/trackolapAttendanceModel.js");
@@ -1339,21 +1339,17 @@ const findEmployeesWith50xxAnd80xx = async () => {
 // });
 
 
-// index.js (or runMerge.js)
-// const { mergeAttendance } = require("./utils/attendanceMerger");
-const { mergeAttendanceForAll } = require("./utils/attendanceMerger");
 
-(async () => {
-  try {
-    console.log("[Manual] Running mergeAttendanceForAll...");
-    const results = await mergeAttendanceForAll();
-    console.log("✅ Final merged count:", results.length);
-  } catch (err) {
-    console.error("Error:", err);
-  }
-})();
-
-
+// const { findCommonAttendance } = require("./utils/attendanceMerger");
+// (async () => {
+//   try {
+//     console.log("[Startup] Running mergeAttendanceForAll...");
+//     // await findCommonAttendance();
+//     console.log("[Startup] mergeAttendanceForAll completed.");
+//   } catch (err) {
+//     console.error("[Startup] Error running mergeAttendanceForAll:", err);
+//   }
+// })();
 
 
 
