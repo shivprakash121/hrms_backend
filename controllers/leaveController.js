@@ -2892,8 +2892,8 @@ const getAllPendingLeaves = async (req, res) => {
                             $switch: {
                                 branches: [
                                     { case: { $eq: ["$status", "Pending"] }, then: 1 },
-                                    { case: { $eq: ["$status", "Approved"] }, then: 2 },
-                                    { case: { $eq: ["$status", "Rejected"] }, then: 3 },
+                                    // { case: { $eq: ["$status", "Approved"] }, then: 2 },
+                                    // { case: { $eq: ["$status", "Rejected"] }, then: 3 },
                                 ],
                                 default: 4, // Fallback priority for unexpected statuses
                             },

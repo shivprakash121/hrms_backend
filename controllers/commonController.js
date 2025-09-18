@@ -15,6 +15,7 @@ const moment = require('moment');
 const trackolapAttendanceModel = require("../models/trackolapAttendanceModel");
 const taxDeclarationModel = require("../models/taxDeclarationModel"); // Replace with your model
 const actionLogModel = require("../models/actionLogModel");
+const employeeDocModel = require("../models/employeeDocsModel");
 
 
 const addNewHoliday = async (req, res) => {
@@ -916,8 +917,87 @@ const getAllLogs = async (req, res) => {
   }
 };
 
+const getAllPrivateDocuments = async (req, res) => {
+    try {
+        const aggregateData = await employeeDocModel.aggregate([
+            { 
+                $match: { docType: "Private" } 
+            },
+            // Normalize employeeId (handle "", null, or invalid values safely)
+            {
+                $addFields: {
+                    employeeIdNorm: {
+                        $toString: {
+                            $convert: {
+                                input: "$employeeId",
+                                to: "int",
+                                onError: null, // if conversion fails
+                                onNull: null   // if value is null
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                $lookup: {
+                    from: "employees",
+                    let: { empId: "$employeeIdNorm" },
+                    pipeline: [
+                        {
+                            $addFields: {
+                                employeeIdNorm: {
+                                    $toString: {
+                                        $convert: {
+                                            input: "$employeeId",
+                                            to: "int",
+                                            onError: null,
+                                            onNull: null
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            $match: { $expr: { $eq: ["$employeeIdNorm", "$$empId"] } }
+                        }
+                    ],
+                    as: "employeeInfo"
+                }
+            },
+            {
+                $unwind: {
+                    path: "$employeeInfo",
+                    preserveNullAndEmptyArrays: true
+                }
+            },
+            {
+                $project: {
+                    _id: 1,
+                    employeeId: "$employeeIdNorm", // normalized value like "49"
+                    documentName: { $ifNull: ["$documentName", ""] },
+                    location: { $ifNull: ["$location", ""] },
+                    employeeName: { $ifNull: ["$employeeInfo.employeeName", ""] },
+                    email: { $ifNull: ["$employeeInfo.email", ""] },
+                    designation: { $ifNull: ["$employeeInfo.designation", ""] },
+                    docType: { $ifNull: ["$docType", ""] }
+                }
+            }
+        ]);
 
-
+        return res.status(200).json({
+            statusCode: 200,
+            statusValue: "SUCCESS",
+            message: "Private documents fetched successfully.",
+            data: aggregateData
+        });
+    } catch (error) {
+        return res.status(500).json({
+            statusCode: 500,
+            statusValue: "FAIL",
+            message: error.message
+        });
+    }
+};
 
 
 
@@ -942,5 +1022,6 @@ module.exports = {
     addTaxDeclaration,
     getAllTaxDeclarations,
     addLogData,
-    getAllLogs
+    getAllLogs,
+    getAllPrivateDocuments
 }

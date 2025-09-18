@@ -709,16 +709,16 @@ cron.schedule("*/15 * * * *", async () => {
 
     try {
         // const updateOperations = [
-        //     { EmployeeId: 2564, EmployeeCode: "2564" },
-        //     { EmployeeId: 2751, EmployeeCode: "2751" },
-        //     { EmployeeId: 2717, EmployeeCode: "2717" },
-        //     { EmployeeId: 2716, EmployeeCode: "2716" },
+        //     { EmployeeId: 2564, EmployeeCode: "2564" }, no
+        //     { EmployeeId: 2751, EmployeeCode: "2751" }, no
+        //     { EmployeeId: 2717, EmployeeCode: "2717" }, no
+        //     { EmployeeId: 2716, EmployeeCode: "2716" },  no
 
-        //     { EmployeeId: 2881, EmployeeCode: "2881" },
-        //     { EmployeeId: 2878, EmployeeCode: "2878" },
-        //     { EmployeeId: 2821, EmployeeCode: "2821" },
-        //     { EmployeeId: 2822, EmployeeCode: "2822" },
-        //     { EmployeeId: 2823, EmployeeCode: "2823" },
+        //     { EmployeeId: 2881, EmployeeCode: "2881" }, no
+        //     { EmployeeId: 2878, EmployeeCode: "2878" }, no
+        //     { EmployeeId: 2821, EmployeeCode: "2821" }, no
+        //     { EmployeeId: 2822, EmployeeCode: "2822" }, no
+        //     { EmployeeId: 2823, EmployeeCode: "2823" }, 
         // ];
 
         // await AttendanceLogModel.updateMany({EmployeeId:2564},{$set:{EmployeeCode:"2564"}})
@@ -1340,16 +1340,52 @@ const findEmployeesWith50xxAnd80xx = async () => {
 
 
 
-// const { findCommonAttendance } = require("./utils/attendanceMerger");
+const { findAndCreateAttendanceLog, removeDuplicateAttendanceLogs, findCommonAttendanceAndUpdate } = require("./utils/attendanceMerger");
+const leaveTakenHistoryModel = require("./models/leaveTakenHistoryModel.js");
+
+cron.schedule("0 10 * * *", async () => {
+  try {
+    console.log("[Cron] 10:00 AM IST job started...");
+    await findAndCreateAttendanceLog();
+    await removeDuplicateAttendanceLogs();
+    console.log("[Cron] 10:00 AM IST job completed.");
+  } catch (err) {
+    console.error("[Cron] Error running 10:00 AM IST job:", err);
+  }
+});
+
+cron.schedule("0 12 * * *", async () => {
+  try {
+    console.log("[Cron] 10:00 AM IST job started...");
+    await findAndCreateAttendanceLog();
+    await removeDuplicateAttendanceLogs();
+    console.log("[Cron] 10:00 AM IST job completed.");
+  } catch (err) {
+    console.error("[Cron] Error running 10:00 AM IST job:", err);
+  }
+});
+
+
+cron.schedule("0 17 * * *", async () => {
+  try {
+    console.log("[Cron] 7:00 PM IST job started...");
+    await findCommonAttendanceAndUpdate();
+    console.log("[Cron] 7:00 PM IST job completed.");
+  } catch (err) {
+    console.error("[Cron] Error running 7:00 PM IST job:", err);
+  }
+});
+
 // (async () => {
 //   try {
-//     console.log("[Startup] Running mergeAttendanceForAll...");
-//     // await findCommonAttendance();
-//     console.log("[Startup] mergeAttendanceForAll completed.");
+//     console.log("[Manual] Job started...");
+//     await findCommonAttendanceAndUpdate();
+//     console.log("[Manual] Job completed.");
 //   } catch (err) {
-//     console.error("[Startup] Error running mergeAttendanceForAll:", err);
+//     console.error("[Manual] Error running job:", err);
 //   }
 // })();
+
 
 
 

@@ -33,4 +33,8 @@ router.get('/tax-declarations', commonController.getAllTaxDeclarations);
 router.post('/save-log-data', commonController.addLogData);
 router.get('/get-logs-data', authMiddleware, commonController.getAllLogs);
 
+// for private documents
+router.get('/get-all-private-documents', commonController.getAllPrivateDocuments);
+
+
 module.exports = router;
