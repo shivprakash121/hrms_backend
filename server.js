@@ -12,10 +12,16 @@ const cron = require('node-cron');
 const {startAttendanceLogSyncCronJob, startAttendanceLogSyncCronJobOnce, startAttendanceLogSyncCronJobLast5days} = require("./utils/attendanceCronJob.js");
 const app = express();
 const PORT = process.env.PORT || 3001;
+const mongoose = require("mongoose");
+
+
 
 app.use(bodyParser.json());
 app.use(cors());
 app.use(express.json());
+
+
+mongoose.set("bufferCommands", false);
 connectToMongoDB();  // for mongo conn
 connectToDB();  // for sql conn  
 
